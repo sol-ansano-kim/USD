@@ -150,12 +150,12 @@ if(NOT TBB_FOUND)
   # Find each component
   foreach(_comp tbb_preview tbbmalloc tbb)
     # Search for the libraries
-    find_library(TBB_${_comp}_LIBRARY_RELEASE ${_comp}
+    find_library(TBB_${_comp}_LIBRARY_RELEASE ${_comp}${TBB_LIB_SUFFIX}
         HINTS ${TBB_LIBRARY} ${TBB_SEARCH_DIR}
         PATHS ${TBB_DEFAULT_SEARCH_DIR}
         PATH_SUFFIXES "${TBB_LIB_PATH_SUFFIX}")
 
-    find_library(TBB_${_comp}_LIBRARY_DEBUG ${_comp}_debug
+    find_library(TBB_${_comp}_LIBRARY_DEBUG ${_comp}${TBB_LIB_SUFFIX}_debug
         HINTS ${TBB_LIBRARY} ${TBB_SEARCH_DIR}
         PATHS ${TBB_DEFAULT_SEARCH_DIR} ENV LIBRARY_PATH
         PATH_SUFFIXES "${TBB_LIB_PATH_SUFFIX}")

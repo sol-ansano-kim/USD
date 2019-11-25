@@ -1,3 +1,6 @@
 [submodule "excons"]
 	path = excons
 	url = https://github.com/gatgui/excons
+[submodule "tbb"]
+	path = tbb
+	url = https://github.com/gatgui/tbb
