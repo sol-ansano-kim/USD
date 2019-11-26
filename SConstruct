@@ -47,7 +47,7 @@ if not rv["require"]:
     dependencies.append(TBBMallocPath())
     dependencies.append(TBBProxyPath())
 
-    usd_opts["TBB_INCLUDE_DIR"] = os.path.abspath(os.path.join("../../include", TBBPath()))
+    usd_opts["TBB_INCLUDE_DIR"] = os.path.abspath(os.path.join(TBBPath(), "../../include"))
     usd_opts["TBB_LIBRARY"] = os.path.dirname(TBBPath())
     usd_opts["TBB_LIB_SUFFIX"] = TBBName().split("tbb")[-1]
 else:
