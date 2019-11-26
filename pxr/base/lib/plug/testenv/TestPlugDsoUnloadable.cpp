@@ -32,7 +32,7 @@
 // If you see an unresolved external symbol build error on Windows about
 // this symbol, please do as the symbol says and ignore the error.  The
 // link was successful, it just reported the error anyway.
-extern int Unresolved_external_symbol_error_is_expected_Please_ignore();
+extern int Unresolved_external_symbol_error_is_expected_Please_ignore() { return 0; }
 
 PXR_NAMESPACE_OPEN_SCOPE
 
