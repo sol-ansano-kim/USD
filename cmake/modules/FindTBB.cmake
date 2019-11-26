@@ -193,6 +193,10 @@ if(NOT TBB_FOUND)
   if(TBB_tbb_LIBRARY MATCHES "debug")
     set(TBB_DEFINITIONS "-DTBB_USE_DEBUG=1")
   endif()
+
+  if(TBB_NO_IMPLICIT_LINKAGE)
+    set(TBB_DEFINITIONS "${TBB_DEFINITIONS} -D __TBB_NO_IMPLICIT_LINKAGE")
+  endif()
   
   ##################################
   # Set version strings
