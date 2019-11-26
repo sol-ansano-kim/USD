@@ -25,6 +25,8 @@ usd_opts["PXR_BUILD_HOUDINI_PLUGIN"] = 0
 usd_opts["PXR_BUILD_PRMAN_PLUGIN"] = 0
 usd_opts["PXR_BUILD_ALEMBIC_PLUGIN"] = 0
 usd_opts["BUILD_SHARED_LIBS"] = 0 if staticlib else 1
+usd_opts["Boost_USE_STATIC_LIBS"] = 1 if excons.GetArgument("boost-static", 1, int) != 0 else 0
+
 
 dependencies = []
 
