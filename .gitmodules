@@ -1,6 +1,30 @@
 [submodule "excons"]
 	path = excons
-	url = https://github.com/gatgui/excons
+	url = git://github.com/gatgui/excons
 [submodule "tbb"]
 	path = tbb
-	url = https://github.com/gatgui/tbb
+	url = git://github.com/gatgui/tbb
+[submodule "openexr"]
+	path = openexr
+	url = git://github.com/gatgui/openexr.git
+[submodule "OpenSubdiv"]
+	path = OpenSubdiv
+	url = git://github.com/sol-ansano-kim/OpenSubdiv.git
+[submodule "OpenColorIO"]
+	path = OpenColorIO
+	url = git://github.com/gatgui/OpenColorIO.git
+[submodule "zlib"]
+	path = zlib
+	url = git://github.com/gatgui/zlib.git
+[submodule "Little-cms"]
+	path = Little-cms
+	url = git://github.com/gatgui/Little-cms.git
+[submodule "libtiff"]
+	path = libtiff
+	url = git://github.com/gatgui/libtiff.git
+[submodule "libjpeg-turbo"]
+	path = libjpeg-turbo
+	url = git://github.com/gatgui/libjpeg-turbo.git
+[submodule "oiio"]
+	path = oiio
+	url = git@github.com:sol-ansano-kim/oiio

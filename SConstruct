@@ -12,23 +12,52 @@ staticlib = excons.GetArgument("usd-static", 0, int) != 0
 
 
 usd_opts = {}
+
+# USD
+usd_opts["BUILD_SHARED_LIBS"] = 0 if staticlib else 1
+
+## tbb
 usd_opts["TBB_INCLUDE_DIR"] = ""
 usd_opts["TBB_LIBRARY"] = ""
 usd_opts["TBB_LIB_SUFFIX"] = ""
+usd_opts["TBB_NO_IMPLICIT_LINKAGE"] = 1
+
+## boost
 usd_opts["BOOST_ROOT"] = ""
-usd_opts["PXR_ENABLE_PYTHON_SUPPORT"] = 0
-usd_opts["PXR_BUILD_IMAGING"] = 0
+usd_opts["Boost_USE_STATIC_LIBS"] = 1 if excons.GetArgument("boost-static", 1, int) != 0 else 0
+
+# imaging
+usd_opts["PXR_BUILD_IMAGING"] = 1
+usd_opts["PXR_BUILD_OPENIMAGEIO_PLUGIN"] = 0
+usd_opts["PXR_BUILD_OPENCOLORIO_PLUGIN"] = 1
+usd_opts["PXR_ENABLE_GL_SUPPORT"] = 0
+usd_opts["PXR_ENABLE_PTEX_SUPPORT"] = 0
+usd_opts["PXR_BUILD_EMBREE_PLUGIN"] = 0
+
+# usd view
 usd_opts["PXR_BUILD_USDVIEW"] = 0
+
+# plugins
 usd_opts["PXR_BUILD_KATANA_PLUGIN"] = 0
 usd_opts["PXR_BUILD_MAYA_PLUGIN"] = 0
 usd_opts["PXR_BUILD_HOUDINI_PLUGIN"] = 0
 usd_opts["PXR_BUILD_PRMAN_PLUGIN"] = 0
 usd_opts["PXR_BUILD_ALEMBIC_PLUGIN"] = 0
-usd_opts["BUILD_SHARED_LIBS"] = 0 if staticlib else 1
-usd_opts["Boost_USE_STATIC_LIBS"] = 1 if excons.GetArgument("boost-static", 1, int) != 0 else 0
-usd_opts["TBB_NO_IMPLICIT_LINKAGE"] = 1
+
+# python
+usd_opts["PXR_ENABLE_PYTHON_SUPPORT"] = 0
 
 dependencies = []
+third_opts = {}
+out_zlib = []
+out_lcms2 = []
+out_tiff = []
+out_jpeg = []
+out_bz2 = []
+out_exr = []
+out_ocio = []
+out_tbb = []
+out_osd = []
 
 
 rv = excons.ExternalLibRequire("boost")
@@ -38,23 +67,121 @@ else:
     excons.WarnOnce("Boost is require to build USD, please provide root directory using 'with-boost=' flag", tool="USD")
     sys.exit(1)
 
+rv = excons.ExternalLibRequire("zlib")
+if not rv["require"]:
+    excons.PrintOnce("USD: Build zlib from sources ...")
+    third_opts["zlib-static"] = 1
+    excons.Call("zlib", imp=["ZlibPath"], overrides=third_opts)
+    third_opts["with-zlib"] = os.path.dirname(out_incdir)
+    out_zlib.append(ZlibPath(static=True))
+    out_zlib.append("{}/zlib.h".format(out_incdir))
+
+rv = excons.ExternalLibRequire("libjpeg")
+if not rv["require"]:
+    excons.PrintOnce("USD: Build libjpeg from sources ...")
+    third_opts["libjpeg-static"] = 1
+    third_opts["jpeg-static"] = 1
+    excons.Call("libjpeg-turbo", imp=["LibjpegPath"], overrides=third_opts)
+    third_opts["with-libjpeg"] = os.path.dirname(out_incdir)
+    out_jpeg.append(LibjpegPath(static=True))
+    out_jpeg.append("{}/jpeglib.h".format(out_incdir))
+
+rv = excons.ExternalLibRequire("libtiff")
+if not rv["require"]:
+    third_opts["libtiff-static"] = 1
+    third_opts["libtiff-use-jbig"] = 0
+    excons.PrintOnce("USD: Build libtiff from sources ...")
+    excons.cmake.AddConfigureDependencies("libtiff", out_zlib + out_jpeg)
+    excons.Call("libtiff", overrides=third_opts, imp=["LibtiffPath"])
+    third_opts["with-libtiff"] = os.path.dirname(os.path.dirname(LibtiffPath()))
+    third_opts["with-jbig"] = os.path.dirname(os.path.dirname(LibtiffPath()))
+    out_tiff.append(LibtiffPath())
+    out_tiff.append("{}/tiff.h".format(out_incdir))
+
+rv = excons.ExternalLibRequire("lcms2")
+if not rv["require"]:
+    third_opts["lcms2-static"] = 1
+    excons.PrintOnce("USD: Build lcms from sources ...")
+    excons.cmake.AddConfigureDependencies("lcms2", out_zlib + out_jpeg + out_tiff)
+    excons.Call("Little-cms", overrides=third_opts, imp=["LCMS2Path"])
+    lcms2_path = LCMS2Path()
+    third_opts["with-lcms2"] = os.path.dirname(os.path.dirname(lcms2_path))
+    out_lcms2.append(lcms2_path)
+    out_lcms2.append("{}/lcms2.h".format(out_incdir))
+    third_opts["LCMS2_LIBRARY"] = LCMS2Path()
+
+rv = excons.ExternalLibRequire("openexr")
+if not rv["require"]:
+    third_opts["openexr-static"] = 1
+    third_opts["openexr-suffix"] = ""
+    third_opts = third_opts.copy()
+    third_opts.update({"BOOST_ROOT": usd_opts["BOOST_ROOT"], "Boost_USE_STATIC_LIBS": usd_opts["Boost_USE_STATIC_LIBS"]})
+    exr_imps = ["HalfPath", "IexPath", "IexMathPath", "ImathPath", "IlmThreadPath", "IlmImfPath", "IlmImfUtilPath", "PyIexPath", "PyImathPath"]
+    excons.PrintOnce("USD: Build openexr from sources ...")
+    excons.cmake.AddConfigureDependencies("openexr", out_zlib)
+    excons.Call("openexr", targets=["ilmbase-static", "openexr-static"], overrides=third_opts, imp=exr_imps)
+    third_opts["with-openexr"] = os.path.dirname(os.path.dirname(HalfPath(True)))
+    out_exr.append(HalfPath(True))
+    out_exr.append(IexPath(True))
+    out_exr.append(ImathPath(True))
+    out_exr.append(IlmThreadPath(True))
+    out_exr.append(IlmImfPath(True))
+
+rv = excons.ExternalLibRequire("ocio")
+if not rv["require"]:
+    third_opts["ocio-static"] = 1
+    third_opts["yamlcpp-static"] = 1
+    
+    third_opts["tinyxml-static"] = 1
+    ocio_opts = third_opts.copy()
+    if sys.platform == "win32":
+        ocio_opts["ocio-use-boost"] = 1
+    excons.PrintOnce("USD: Build OpenColorIO from sources ...")
+    excons.cmake.AddConfigureDependencies("ocio", out_zlib)
+    excons.Call("OpenColorIO", targets=["yamlcpp", "tinyxml", "ocio-static"], overrides=ocio_opts, imp=["OCIOPath", "YamlCppPath", "TinyXmlPath"])
+    out_ocio.append(OCIOPath(static=True))
+    out_ocio.append("{}/OpenColorIO/OpenColorIO.h".format(out_incdir))
+    third_opts["with-ocio"] = os.path.dirname(os.path.dirname(OCIOPath(static=True)))
+    third_opts["with-tinyxml"] = os.path.dirname(os.path.dirname(TinyXmlPath()))    
+    third_opts["with-yamlcpp"] = os.path.dirname(os.path.dirname(YamlCppPath()))
+    third_opts["yamlcpp-name"] = "yaml-cpp"
+
 rv = excons.ExternalLibRequire("tbb")
 if not rv["require"]:
-    tbb_opts = {"tbb-static": 1, "use-c++11": 1}
+    third_opts["tbb-static"] = 1
+    tbb_opts = third_opts.copy()
+    tbb_opts["use-c++11"] = 1
     excons.PrintOnce("USD: Build tbb from sources ...")
     excons.Call("tbb", overrides=tbb_opts, imp=["TBBPath", "TBBMallocPath", "TBBProxyPath", "TBBName"])
-    dependencies.append(TBBPath())
-    dependencies.append(TBBMallocPath())
-    dependencies.append(TBBProxyPath())
+    third_opts["with-tbb"] = os.path.dirname(os.path.dirname(TBBPath()))
+    third_opts["tbb-suffix"] = "_static"
+    out_tbb.append(TBBPath())
+    out_tbb.append(TBBMallocPath())
+    out_tbb.append(TBBProxyPath())
+#     usd_opts["TBB_INCLUDE_DIR"] = os.path.abspath(os.path.join(TBBPath(), "../../include"))
+#     usd_opts["TBB_LIBRARY"] = os.path.dirname(TBBPath())
+#     usd_opts["TBB_LIB_SUFFIX"] = TBBName().split("tbb")[-1]
+    
+# else:
+#     usd_opts["TBB_INCLUDE_DIR"] = rv["incdir"]
+#     usd_opts["TBB_LIBRARY"] = rv["libdir"]
+#     usd_opts["TBB_LIB_SUFFIX"] = excons.GetArgument("tbb-suffix", "")
 
-    usd_opts["TBB_INCLUDE_DIR"] = os.path.abspath(os.path.join(TBBPath(), "../../include"))
-    usd_opts["TBB_LIBRARY"] = os.path.dirname(TBBPath())
-    usd_opts["TBB_LIB_SUFFIX"] = TBBName().split("tbb")[-1]
-else:
-    usd_opts["TBB_INCLUDE_DIR"] = rv["incdir"]
-    usd_opts["TBB_LIBRARY"] = rv["libdir"]
-    usd_opts["TBB_LIB_SUFFIX"] = excons.GetArgument("tbb-suffix", "")
+rv = excons.ExternalLibRequire("osd")
+if not rv["require"]:
+    third_opts["osd-static"] = 1
+    excons.PrintOnce("USD: Build osd from sources ...")
+    excons.cmake.AddConfigureDependencies("osd", out_tbb)
+    excons.Call("OpenSubdiv", targets=["osd"], overrides=third_opts, imp=["OsdCPUPath", "OsdGPUPath"])
+    out_osd.append(OsdCPUPath(True))
+    out_osd.append(OsdGPUPath(True))
 
+rv = excons.ExternalLibRequire("oiio")
+if not rv["require"]:
+    third_opts["oiio-static"] = 1
+    excons.PrintOnce("USD: Build oiio from sources ...")
+    excons.cmake.AddConfigureDependencies("oiio", out_zlib + out_lcms2 + out_tiff + out_jpeg + out_bz2 + out_exr + out_ocio)
+    excons.Call("oiio", overrides=third_opts, imp=["OiioPath"])
 
 def _name(libname, static=False):
     return libname
@@ -79,22 +206,22 @@ RequireUsd = functools.partial(_require, "usd")
 # TODO : provide other libs
 
 
-prjs = []
-prjs.append({"name": "usd",
-             "type": "cmake",
-             "cmake-opts": usd_opts,
-             "cmake-cfgs": ["CMakeLists.txt"] + dependencies,
-             "cmake-srcs": excons.CollectFiles(["pxr"], patterns=["*.cc", "*.h"], recursive=True),
-             # TODO : check other libs
-             "cmake-outputs": [UsdPath(static=staticlib)]})
+# prjs = []
+# prjs.append({"name": "usd",
+#              "type": "cmake",
+#              "cmake-opts": usd_opts,
+#              "cmake-cfgs": ["CMakeLists.txt"] + out_osd,
+#              "cmake-srcs": excons.CollectFiles(["pxr"], patterns=["*.cc", "*.h"], recursive=True),
+#              # TODO : check other libs
+#              "cmake-outputs": [UsdPath(static=staticlib)]})
 
 
-excons.AddHelpOptions(USD="""USD OPTIONS
-  usd-static=0|1        : Toggle between static and shared library build [1]""")
+# excons.AddHelpOptions(USD="""USD OPTIONS
+#   usd-static=0|1        : Toggle between static and shared library build [1]""")
 
-excons.DeclareTargets(env, prjs)
+# excons.DeclareTargets(env, prjs)
 
 
-Default("usd")
+# Default("usd")
 
-Export("UsdName UsdPath RequireUsd")
+# Export("UsdName UsdPath RequireUsd")
