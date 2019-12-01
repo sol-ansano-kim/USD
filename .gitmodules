@@ -27,4 +27,4 @@
 	url = git://github.com/gatgui/libjpeg-turbo.git
 [submodule "oiio"]
 	path = oiio
-	url = git@github.com:sol-ansano-kim/oiio
+	url = git://github.com/sol-ansano-kim/oiio
