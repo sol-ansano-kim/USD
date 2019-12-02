@@ -2,6 +2,7 @@ import sys
 import os
 import excons
 import functools
+import re
 
 
 env = excons.MakeBaseEnv()
@@ -28,7 +29,7 @@ usd_opts["Boost_USE_STATIC_LIBS"] = 1 if excons.GetArgument("boost-static", 1, i
 
 # imaging
 usd_opts["PXR_BUILD_IMAGING"] = 1
-usd_opts["PXR_BUILD_OPENIMAGEIO_PLUGIN"] = 0
+usd_opts["PXR_BUILD_OPENIMAGEIO_PLUGIN"] = 1
 usd_opts["PXR_BUILD_OPENCOLORIO_PLUGIN"] = 1
 usd_opts["PXR_ENABLE_GL_SUPPORT"] = 0
 usd_opts["PXR_ENABLE_PTEX_SUPPORT"] = 0
@@ -47,7 +48,6 @@ usd_opts["PXR_BUILD_ALEMBIC_PLUGIN"] = 0
 # python
 usd_opts["PXR_ENABLE_PYTHON_SUPPORT"] = 0
 
-dependencies = []
 third_opts = {}
 out_zlib = []
 out_lcms2 = []
@@ -56,6 +56,7 @@ out_jpeg = []
 out_bz2 = []
 out_exr = []
 out_ocio = []
+out_oiio = []
 out_tbb = []
 out_osd = []
 
@@ -126,6 +127,31 @@ if not rv["require"]:
     out_exr.append(ImathPath(True))
     out_exr.append(IlmThreadPath(True))
     out_exr.append(IlmImfPath(True))
+    usd_opts["FOUND_OPENEXR"] = 1
+    usd_opts["OPENEXR_INCLUDE_DIRS"] = out_incdir
+    usd_opts["OPENEXR_LIBRARIES"] = ";".join(out_zlib + [HalfPath(True), IexPath(True), ImathPath(True), IlmThreadPath(True), IlmImfPath(True)])
+
+    exr_ver_m = 0
+    exr_ver_n = 0
+    exr_ver_p = 0
+
+    with open(os.path.abspath("openexr/OpenEXR/CMakeLists.txt"), "r") as f:
+        for l in f.readlines():
+            mr = re.search("^set[(]OPENEXR_VERSION_MAJOR ([0-9]+)[)]$", l)
+            if mr:
+                exr_ver_m = mr.group(1)
+
+            nr = re.search("^set[(]OPENEXR_VERSION_MINOR ([0-9]+)[)]$", l)
+            if nr:
+                exr_ver_n = nr.group(1)
+
+            pr = re.search("^set[(]OPENEXR_VERSION_PATCH ([0-9]+)[)]$", l)
+            if pr:
+                exr_ver_p = pr.group(1)
+
+    usd_opts["OPENEXR_VERSION"] = "{}.{}.{}".format(exr_ver_m, exr_ver_n, exr_ver_p)
+else:
+    usd_opts["OPENEXR_LOCATION"] = os.path.dirname(rv["incdir"])
 
 rv = excons.ExternalLibRequire("ocio")
 if not rv["require"]:
@@ -141,10 +167,36 @@ if not rv["require"]:
     excons.Call("OpenColorIO", targets=["yamlcpp", "tinyxml", "ocio-static"], overrides=ocio_opts, imp=["OCIOPath", "YamlCppPath", "TinyXmlPath"])
     out_ocio.append(OCIOPath(static=True))
     out_ocio.append("{}/OpenColorIO/OpenColorIO.h".format(out_incdir))
-    third_opts["with-ocio"] = os.path.dirname(os.path.dirname(OCIOPath(static=True)))
+    ocio_loc = os.path.dirname(os.path.dirname(OCIOPath(static=True)))
+    third_opts["with-ocio"] = ocio_loc
     third_opts["with-tinyxml"] = os.path.dirname(os.path.dirname(TinyXmlPath()))    
     third_opts["with-yamlcpp"] = os.path.dirname(os.path.dirname(YamlCppPath()))
     third_opts["yamlcpp-name"] = "yaml-cpp"
+
+    ocio_ver_m = 0
+    ocio_ver_n = 0
+    ocio_ver_p = 0
+    with open(os.path.abspath("OpenColorIO/CMakeLists.txt"), "r") as f:
+        for l in f.readlines():
+            mr = re.search("^set[(]OCIO_VERSION_MAJOR ([0-9]+)[)]$", l)
+            if mr:
+                ocio_ver_m = mr.group(1)
+
+            nr = re.search("^set[(]OCIO_VERSION_MINOR ([0-9]+)[)]$", l)
+            if nr:
+                ocio_ver_n = nr.group(1)
+
+            pr = re.search("^set[(]OCIO_VERSION_PATCH ([0-9]+)[)]$", l)
+            if pr:
+                ocio_ver_p = pr.group(1)
+
+    usd_opts["OCIO_FOUND"] = 1
+    usd_opts["OCIO_LIBRARIES"] = ";".join([TinyXmlPath(), YamlCppPath(), OCIOPath(static=True)])
+    usd_opts["OCIO_INCLUDE_DIRS"] = out_incdir
+    usd_opts["OCIO_VERSION"] = "{}.{}.{}".format(ocio_ver_m, ocio_ver_n, ocio_ver_p)
+else:
+    # find by FindOpenColorIO.cmake
+    usd_opts["OCIO_LOCATION"] = os.path.dirname(rv["incdir"])
 
 rv = excons.ExternalLibRequire("tbb")
 if not rv["require"]:
@@ -158,14 +210,30 @@ if not rv["require"]:
     out_tbb.append(TBBPath())
     out_tbb.append(TBBMallocPath())
     out_tbb.append(TBBProxyPath())
-#     usd_opts["TBB_INCLUDE_DIR"] = os.path.abspath(os.path.join(TBBPath(), "../../include"))
-#     usd_opts["TBB_LIBRARY"] = os.path.dirname(TBBPath())
-#     usd_opts["TBB_LIB_SUFFIX"] = TBBName().split("tbb")[-1]
-    
-# else:
-#     usd_opts["TBB_INCLUDE_DIR"] = rv["incdir"]
-#     usd_opts["TBB_LIBRARY"] = rv["libdir"]
-#     usd_opts["TBB_LIB_SUFFIX"] = excons.GetArgument("tbb-suffix", "")
+    usd_opts["TBB_FOUND"] = 1
+    usd_opts["TBB_tbb_LIBRARY"] = TBBPath()
+    usd_opts["TBB_INCLUDE_DIRS"] = out_incdir
+    usd_opts["TBB_LIBRARIES"] = ";".join([TBBPath(), TBBMallocPath(), TBBProxyPath()])
+    usd_opts["TBB_DEFINITIONS"] = "-D __TBB_NO_IMPLICIT_LINKAGE"
+    if excons.GetArgument("debug", 0, int):
+        usd_opts["TBB_DEFINITIONS"] += " -DTBB_USE_DEBUG=1"
+
+    tbb_major = 1
+    tbb_minor = 1
+    with open(os.path.abspath("tbb/include/tbb/tbb_stddef.h"), "r") as f:
+        for l in f.readlines():
+            mr = re.search(".*#define TBB_VERSION_MAJOR ([0-9]+).*", l)
+            if mr:
+                tbb_major = mr.group(1)
+            nr = re.search(".*#define TBB_VERSION_MINOR ([0-9]+).*", l)
+            if nr:
+                rbb_minor = nr.group(1)
+    usd_opts["TBB_VERSION"] = "{}.{}".format(tbb_major, tbb_minor)
+else:
+    # find by FindTBB.cmake
+    usd_opts["TBB_INCLUDE_DIR"] = rv["incdir"]
+    usd_opts["TBB_LIBRARY"] = rv["libdir"]
+    usd_opts["TBB_LIB_SUFFIX"] = excons.GetArgument("tbb-suffix", "")
 
 rv = excons.ExternalLibRequire("osd")
 if not rv["require"]:
@@ -174,14 +242,40 @@ if not rv["require"]:
     excons.cmake.AddConfigureDependencies("osd", out_tbb)
     excons.Call("OpenSubdiv", targets=["osd"], overrides=third_opts, imp=["OsdCPUPath", "OsdGPUPath"])
     out_osd.append(OsdCPUPath(True))
-    out_osd.append(OsdGPUPath(True))
+
+    usd_opts["OPENSUBDIV_FOUND"] = 1
+    usd_opts["OPENSUBDIV_INCLUDE_DIR"] = out_incdir
+    usd_opts["OPENSUBDIV_LIBRARIES"] = OsdCPUPath(True)
+
+    with open(os.path.abspath("OpenSubdiv/opensubdiv/version.h")) as f:
+        for l in f.readlines():
+            r = re.search("^#define OPENSUBDIV_VERSION v([0-9]+)[_]([0-9]+)[_]([0-9]+)$", l)
+            if r:
+                usd_opts["OPENSUBDIV_VERSION"] = "{}.{}.{}".format(r.group(1), r.group(2), r.group(3))
+                break
+
+    if usd_opts["PXR_ENABLE_GL_SUPPORT"]:
+        out_osd.append(OsdGPUPath(True))
+        usd_opts["OPENSUBDIV_LIBRARIES"] += ";" + OsdGPUPath(True)
+
+else:
+    # find by FindOpenSubdiv.cmake
+    usd_opts["OPENSUBDIV_ROOT_DIR"] = os.path.dirname(rv["incdir"])
 
 rv = excons.ExternalLibRequire("oiio")
 if not rv["require"]:
     third_opts["oiio-static"] = 1
     excons.PrintOnce("USD: Build oiio from sources ...")
     excons.cmake.AddConfigureDependencies("oiio", out_zlib + out_lcms2 + out_tiff + out_jpeg + out_bz2 + out_exr + out_ocio)
-    excons.Call("oiio", overrides=third_opts, imp=["OiioPath"])
+    excons.Call("oiio", overrides=third_opts, imp=["OiioPath", "OiioExtraLibPaths", "OiioVersion"])
+    out_oiio = [OiioPath(static=True)] + OiioExtraLibPaths()
+    usd_opts["OIIO_FOUND"] = 1
+    usd_opts["OIIO_LIBRARIES"] = ";".join(out_oiio)
+    usd_opts["OIIO_INCLUDE_DIRS"] = out_incdir
+    usd_opts["OIIO_VERSION"] = OiioVersion()
+else:
+    # find by FindOpenImageIO.cmake
+    usd_opts["OIIO_LOCATION"] = os.path.dirname(rv["incdir"])
 
 def _name(libname, static=False):
     return libname
@@ -205,23 +299,35 @@ UsdPath = functools.partial(_path, "usd")
 RequireUsd = functools.partial(_require, "usd")
 # TODO : provide other libs
 
-
-# prjs = []
-# prjs.append({"name": "usd",
-#              "type": "cmake",
-#              "cmake-opts": usd_opts,
-#              "cmake-cfgs": ["CMakeLists.txt"] + out_osd,
-#              "cmake-srcs": excons.CollectFiles(["pxr"], patterns=["*.cc", "*.h"], recursive=True),
-#              # TODO : check other libs
-#              "cmake-outputs": [UsdPath(static=staticlib)]})
-
-
-# excons.AddHelpOptions(USD="""USD OPTIONS
-#   usd-static=0|1        : Toggle between static and shared library build [1]""")
-
-# excons.DeclareTargets(env, prjs)
+dependencies = []
+dependencies += out_zlib
+dependencies += out_lcms2
+dependencies += out_tiff
+dependencies += out_jpeg
+dependencies += out_bz2
+dependencies += out_exr
+dependencies += out_ocio
+dependencies += out_oiio
+dependencies += out_tbb
+dependencies += out_osd
 
 
-# Default("usd")
+prjs = []
+prjs.append({"name": "usd",
+             "type": "cmake",
+             "cmake-opts": usd_opts,
+             "cmake-cfgs": ["CMakeLists.txt"] + dependencies,
+             "cmake-srcs": excons.CollectFiles(["pxr"], patterns=["*.cc", "*.h"], recursive=True),
+             # TODO : check other libs
+             "cmake-outputs": [UsdPath(static=staticlib)]})
 
-# Export("UsdName UsdPath RequireUsd")
+
+excons.AddHelpOptions(USD="""USD OPTIONS
+  usd-static=0|1        : Toggle between static and shared library build [1]""")
+
+excons.DeclareTargets(env, prjs)
+
+
+Default("usd")
+
+Export("UsdName UsdPath RequireUsd")
