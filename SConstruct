@@ -31,7 +31,8 @@ usd_opts["Boost_USE_STATIC_LIBS"] = 1 if excons.GetArgument("boost-static", 1, i
 usd_opts["PXR_BUILD_IMAGING"] = 1
 usd_opts["PXR_BUILD_OPENIMAGEIO_PLUGIN"] = 1
 usd_opts["PXR_BUILD_OPENCOLORIO_PLUGIN"] = 1
-usd_opts["PXR_ENABLE_GL_SUPPORT"] = 0
+# TODO : build glew
+usd_opts["PXR_ENABLE_GL_SUPPORT"] = 1
 usd_opts["PXR_ENABLE_PTEX_SUPPORT"] = 0
 usd_opts["PXR_BUILD_EMBREE_PLUGIN"] = 0
 
