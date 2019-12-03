@@ -32,7 +32,7 @@ usd_opts["PXR_BUILD_IMAGING"] = 1
 usd_opts["PXR_BUILD_OPENIMAGEIO_PLUGIN"] = 1
 usd_opts["PXR_BUILD_OPENCOLORIO_PLUGIN"] = 1
 # TODO : build glew
-usd_opts["PXR_ENABLE_GL_SUPPORT"] = 1
+usd_opts["PXR_ENABLE_GL_SUPPORT"] = 0
 usd_opts["PXR_ENABLE_PTEX_SUPPORT"] = 0
 usd_opts["PXR_BUILD_EMBREE_PLUGIN"] = 0
 
@@ -47,7 +47,7 @@ usd_opts["PXR_BUILD_PRMAN_PLUGIN"] = 0
 usd_opts["PXR_BUILD_ALEMBIC_PLUGIN"] = 0
 
 # python
-usd_opts["PXR_ENABLE_PYTHON_SUPPORT"] = 0
+usd_opts["PXR_ENABLE_PYTHON_SUPPORT"] = 1
 
 third_opts = {}
 out_zlib = []
