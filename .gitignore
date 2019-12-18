@@ -10,3 +10,4 @@ debug/
 *.automake.outputs
 .sconf_temp/
 config.log
+*config.status
