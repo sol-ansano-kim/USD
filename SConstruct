@@ -369,26 +369,30 @@ defs = []
 
 if sys.platform != "win32":
     flags += " -std=c++11 -Wall -pthread -Wno-deprecated -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-parameter"
+    flags += " -Wno-missing-field-initializers"
+    if sys.platform == "darwin":
+        flags += " -Wno-unused-command-line-argument"
+        flags += " -Wno-expansion-to-defined"
+        flags += " -Wno-undefined-var-template"
+        flags += " -Wno-unused-function"
+        flags += " -Wno-unused-variable"
+        flags += " -Wno-unneeded-internal-declaration"
+        flags += " -Wno-potentially-evaluated-expression"
+        flags += " -Wno-instantiation-after-specialization"
+        flags += " -Wno-inconsistent-missing-override"
+        flags += " -Wno-unused-private-field"
+        flags += " -Wno-unused-lambda-capture"
+    else:
+        flags += " -Wno-ignored-qualifiers"
+        flags += " -Wno-extra"
+        flags += " -Wno-type-limits"
+
 else:
     defs += ["_CRT_SECURE_NO_WARNINGS", "_SCL_SECURE_NO_WARNINGS", "NOMINMAX", "YY_NO_UNISTD_H"]
     flags += " /EHsc /Zc:rvalueCast /Zc:strictStrings /Zc:inline /W3"
     flags += " /wd4244 /wd4305 /wd4267 /wd4506 /wd4091 /wd4273 /wd4180 /wd4334"
     flags += " /bigobj /Zi /MP /Gm-"
     # /IGNORE:4221
-
-if sys.platform == "darwin":
-    flags += " -Wno-unused-command-line-argument"
-    flags += " -Wno-missing-field-initializers"
-    flags += " -Wno-expansion-to-defined"
-    flags += " -Wno-undefined-var-template"
-    flags += " -Wno-unused-function"
-    flags += " -Wno-unused-variable"
-    flags += " -Wno-unneeded-internal-declaration"
-    flags += " -Wno-potentially-evaluated-expression"
-    flags += " -Wno-instantiation-after-specialization"
-    flags += " -Wno-inconsistent-missing-override"
-    flags += " -Wno-unused-private-field"
-    #flags += " -Wno-unused-lambda-capture"
 
 if build_python:
     defs += ["PXR_PYTHON_SUPPORT_ENABLED", "BOOST_PYTHON_NO_PY_SIGNATURES"]
