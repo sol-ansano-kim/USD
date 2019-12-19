@@ -420,6 +420,12 @@ prjs_default = {"type": "sharedlib",
 def _fpath(directory, filePaths):
     return map(lambda x: os.path.join(directory, x), filePaths)
 
+def _addDefs(name, currentDefs):
+    return ["{}_EXPORTS=1".format(name.upper()), "{}_EXPORTS".format(name)] + currentDefs
+
+def _addPyDefs(name, currentDefs):
+    return ["MFB_PACKAGE_NAME={}".format(name), "MFB_ALT_PACKAGE_NAME={}".format(name), "MFB_PACKAGE_MODULE={}{}".format(name[0].upper(), name[1:])] + currentDefs
+
 # ============================================
 #  base
 # ============================================
@@ -434,6 +440,7 @@ arch_prj["name"] = "arch"
 arch_prj["alias"] = "usd-base-arch"
 arch_prj["srcs"] = excons.glob("pxr/base/lib/arch/*.cpp")
 arch_prj["install"] = {os.path.join(out_incdir, "pxr/base/arch"): excons.glob("pxr/base/lib/arch/*.h")}
+arch_prj["defs"] = _addDefs("arch", arch_prj["defs"])
 prjs.append(arch_prj)
 bases.append("usd-base-arch")
 
@@ -473,6 +480,7 @@ tf_prj["install"] = {os.path.join(out_incdir, "pxr/base/tf"): excons.glob("pxr/b
                      os.path.join(out_incdir, "pxr/base/tf/pxrDoubleConversion"): excons.glob("pxr/base/lib/tf/pxrDoubleConversion/*.h"),
                      os.path.join(out_incdir, "pxr/base/tf/pxrLZ4"): excons.glob("pxr/base/lib/tf/pxrLZ4/*.h")}
 tf_prj["libs"] = libs + ["arch"]
+tf_prj["defs"] = _addDefs("tf", tf_prj["defs"])
 prjs.append(tf_prj)
 bases.append("usd-base-tf")
 
@@ -499,6 +507,7 @@ gf_prj["alias"] = "usd-base-gf"
 gf_prj["srcs"] = _fpath("pxr/base/lib/gf", gfs)
 gf_prj["install"] = {os.path.join(out_incdir, "pxr/base/gf"): excons.glob("pxr/base/lib/gf/*.h"),}
 gf_prj["libs"] = libs + ["arch", "tf"]
+gf_prj["defs"] = _addDefs("gf", gf_prj["defs"])
 prjs.append(gf_prj)
 bases.append("usd-base-gf")
 
@@ -513,6 +522,7 @@ js_prj["srcs"] = excons.glob("pxr/base/lib/js/*.cpp")
 js_prj["install"] = {os.path.join(out_incdir, "pxr/base/js"): excons.glob("pxr/base/lib/js/*.h"),
                      os.path.join(out_incdir, "pxr/base/js/rapidjson"): excons.glob("pxr/base/lib/js/rapidjson/*")}
 js_prj["libs"] = libs + ["arch", "tf"]
+js_prj["defs"] = _addDefs("js", js_prj["defs"])
 prjs.append(js_prj)
 bases.append("usd-base-js")
 
@@ -537,6 +547,7 @@ trace_prj["alias"] = "usd-base-trace"
 trace_prj["srcs"] = _fpath("pxr/base/lib/trace", traces)
 trace_prj["install"] = {os.path.join(out_incdir, "pxr/base/trace"): excons.glob("pxr/base/lib/trace/*.h")}
 trace_prj["libs"] = libs + ["arch", "tf", "js"]
+trace_prj["defs"] = _addDefs("trace", trace_prj["defs"])
 prjs.append(trace_prj)
 bases.append("usd-base-trace")
 
@@ -554,6 +565,7 @@ work_prj["alias"] = "usd-base-work"
 work_prj["srcs"] = _fpath("pxr/base/lib/work", works)
 work_prj["install"] = {os.path.join(out_incdir, "pxr/base/work"): excons.glob("pxr/base/lib/work/*.h")}
 work_prj["libs"] = libs + ["tf", "trace"]
+work_prj["defs"] = _addDefs("work", work_prj["defs"])
 prjs.append(work_prj)
 bases.append("usd-base-work")
 
@@ -571,6 +583,7 @@ plug_prj["alias"] = "usd-base-plug"
 plug_prj["srcs"] = _fpath("pxr/base/lib/plug", plugs)
 plug_prj["install"] = {os.path.join(out_incdir, "pxr/base/plug"): excons.glob("pxr/base/lib/plug/*.h")}
 plug_prj["libs"] = libs + ["arch", "tf", "js", "trace", "work"]
+plug_prj["defs"] = _addDefs("plug", plug_prj["defs"])
 prjs.append(plug_prj)
 bases.append("usd-base-plug")
 
@@ -587,6 +600,7 @@ vt_prj["alias"] = "usd-base-vt"
 vt_prj["srcs"] = _fpath("pxr/base/lib/vt", vts)
 vt_prj["install"] = {os.path.join(out_incdir, "pxr/base/vt"): excons.glob("pxr/base/lib/vt/*.h")}
 vt_prj["libs"] = libs + ["arch", "tf", "gf", "trace"]
+vt_prj["defs"] = _addDefs("vt", vt_prj["defs"])
 prjs.append(vt_prj)
 bases.append("usd-base-vt")
 
@@ -613,6 +627,7 @@ ar_prj["alias"] = "usd-usd-ar"
 ar_prj["srcs"] = _fpath("pxr/usd/lib/ar", ars)
 ar_prj["install"] = {os.path.join(out_incdir, "pxr/usd/ar"): excons.glob("pxr/usd/lib/ar/*.h")}
 ar_prj["libs"] = libs + ["arch", "tf", "plug", "vt", "js"]
+ar_prj["defs"] = _addDefs("ar", ar_prj["defs"])
 prjs.append(ar_prj)
 usds.append("usd-usd-ar")
 
@@ -628,6 +643,7 @@ kind_prj["alias"] = "usd-usd-kind"
 kind_prj["srcs"] = _fpath("pxr/usd/lib/kind", kinds)
 kind_prj["install"] = {os.path.join(out_incdir, "pxr/usd/kind"): excons.glob("pxr/usd/lib/kind/*.h")}
 kind_prj["libs"] = libs + ["arch", "js", "tf", "plug"]
+kind_prj["defs"] = _addDefs("kind", kind_prj["defs"])
 prjs.append(kind_prj)
 usds.append("usd-usd-kind")
 
@@ -665,6 +681,7 @@ sdf_prj["alias"] = "usd-usd-sdf"
 sdf_prj["srcs"] = _fpath("pxr/usd/lib/sdf", sdfs)
 sdf_prj["install"] = {os.path.join(out_incdir, "pxr/usd/sdf"): excons.glob("pxr/usd/lib/sdf/*.h")}
 sdf_prj["libs"] = libs + ["arch", "tf", "gf", "trace", "vt", "work", "ar", "js", "plug"]
+sdf_prj["defs"] = _addDefs("sdf", sdf_prj["defs"])
 
 prjs.append(sdf_prj)
 usds.append("usd-usd-sdf")
@@ -683,6 +700,7 @@ ndr_prj["alias"] = "usd-usd-ndr"
 ndr_prj["srcs"] = _fpath("pxr/usd/lib/ndr", ndrs)
 ndr_prj["install"] = {os.path.join(out_incdir, "pxr/usd/ndr"): excons.glob("pxr/usd/lib/ndr/*.h")}
 ndr_prj["libs"] = libs + ["arch", "tf", "plug", "vt", "work", "ar", "sdf"]
+ndr_prj["defs"] = _addDefs("ndr", ndr_prj["defs"])
 
 prjs.append(ndr_prj)
 usds.append("usd-usd-ndr")
@@ -700,6 +718,7 @@ sdr_prj["alias"] = "usd-usd-sdr"
 sdr_prj["srcs"] = _fpath("pxr/usd/lib/sdr", sdrs)
 sdr_prj["install"] = {os.path.join(out_incdir, "pxr/usd/sdr"): excons.glob("pxr/usd/lib/sdr/*.h")}
 sdr_prj["libs"] = libs + ["arch", "tf", "vt", "ar", "ndr", "sdf", "gf"]
+sdr_prj["defs"] = _addDefs("sdr", sdr_prj["defs"])
 
 prjs.append(sdr_prj)
 usds.append("usd-usd-sdr")
@@ -727,6 +746,7 @@ pcp_prj["alias"] = "usd-usd-pcp"
 pcp_prj["srcs"] = _fpath("pxr/usd/lib/pcp", pcps)
 pcp_prj["install"] = {os.path.join(out_incdir, "pxr/usd/pcp"): excons.glob("pxr/usd/lib/pcp/*.h")}
 pcp_prj["libs"] = libs + ["arch", "tf", "trace", "vt", "sdf", "work", "ar"]
+pcp_prj["defs"] = _addDefs("pcp", pcp_prj["defs"])
 
 prjs.append(pcp_prj)
 usds.append("usd-usd-pcp")
@@ -759,6 +779,7 @@ usd_prj["alias"] = "usd-usd-usd"
 usd_prj["srcs"] = _fpath("pxr/usd/lib/usd", usds)
 usd_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usd"): excons.glob("pxr/usd/lib/usd/*.h")}
 usd_prj["libs"] = libs + ["arch", "kind", "pcp", "sdf", "ar", "plug", "tf", "js", "gf", "trace", "vt", "work"]
+usd_prj["defs"] = _addDefs("usd", usd_prj["defs"])
 
 prjs.append(usd_prj)
 usds.append("usd-usd-usd")
@@ -784,6 +805,7 @@ usd_geom_prj["alias"] = "usd-usd-usdGeom"
 usd_geom_prj["srcs"] = _fpath("pxr/usd/lib/usdGeom", usd_geoms)
 usd_geom_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdGeom"): excons.glob("pxr/usd/lib/usdGeom/*.h")}
 usd_geom_prj["libs"] = libs + ["arch", "js", "tf", "gf", "plug", "vt", "sdf", "trace", "usd", "work", "kind"]
+usd_geom_prj["defs"] = _addDefs("usdGeom", usd_geom_prj["defs"])
 
 prjs.append(usd_geom_prj)
 usds.append("usd-usd-usdGeom")
@@ -801,6 +823,7 @@ usd_vol_prj["alias"] = "usd-usd-usdVol"
 usd_vol_prj["srcs"] = _fpath("pxr/usd/lib/usdVol", usd_vols)
 usd_vol_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdVol"): excons.glob("pxr/usd/lib/usdVol/*.h")}
 usd_vol_prj["libs"] = libs + ["tf", "sdf", "usd", "usdGeom"]
+usd_vol_prj["defs"] = _addDefs("usdVol", usd_vol_prj["defs"])
 
 prjs.append(usd_vol_prj)
 usds.append("usd-usd-usdVol")
@@ -821,6 +844,7 @@ usd_lux_prj["alias"] = "usd-usd-usdLux"
 usd_lux_prj["srcs"] = _fpath("pxr/usd/lib/usdLux", usd_luxs)
 usd_lux_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdLux"): excons.glob("pxr/usd/lib/usdLux/*.h")}
 usd_lux_prj["libs"] = libs + ["tf", "vt", "sdf", "usd", "usdGeom"]
+usd_lux_prj["defs"] = _addDefs("usdLux", usd_lux_prj["defs"])
 
 prjs.append(usd_lux_prj)
 usds.append("usd-usd-usdLux")
@@ -840,6 +864,7 @@ usd_shade_prj["alias"] = "usd-usd-usdShade"
 usd_shade_prj["srcs"] = _fpath("pxr/usd/lib/usdShade", usd_shades)
 usd_shade_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdShade"): excons.glob("pxr/usd/lib/usdShade/*.h")}
 usd_shade_prj["libs"] = libs + ["arch", "tf", "vt", "ndr", "sdf", "ar", "sdr", "pcp", "trace", "work", "usd", "usdGeom"]
+usd_shade_prj["defs"] = _addDefs("usdShade", usd_shade_prj["defs"])
 
 prjs.append(usd_shade_prj)
 usds.append("usd-usd-usdShade")
@@ -858,6 +883,7 @@ usd_render_prj["alias"] = "usd-usd-usdRender"
 usd_render_prj["srcs"] = _fpath("pxr/usd/lib/usdRender", usd_renders)
 usd_render_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdRender"): excons.glob("pxr/usd/lib/usdRender/*.h")}
 usd_render_prj["libs"] = libs + ["arch", "gf", "tf", "vt", "sdf", "usd", "usdGeom"]
+usd_render_prj["defs"] = _addDefs("usdRender", usd_render_prj["defs"])
 
 prjs.append(usd_render_prj)
 usds.append("usd-usd-usdRender")
@@ -874,6 +900,7 @@ usd_hydra_prj["alias"] = "usd-usd-usdHydra"
 usd_hydra_prj["srcs"] = _fpath("pxr/usd/lib/usdHydra", usd_hydras)
 usd_hydra_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdHydra"): excons.glob("pxr/usd/lib/usdHydra/*.h")}
 usd_hydra_prj["libs"] = libs + ["ar", "tf", "ndr", "sdf", "plug", "usd", "usdShade"]
+usd_hydra_prj["defs"] = _addDefs("usdHydra", usd_hydra_prj["defs"])
 
 prjs.append(usd_hydra_prj)
 usds.append("usd-usd-usdHydra")
@@ -897,6 +924,7 @@ usd_ri_prj["alias"] = "usd-usd-usdRi"
 usd_ri_prj["srcs"] = _fpath("pxr/usd/lib/usdRi", usd_ris)
 usd_ri_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdRi"): excons.glob("pxr/usd/lib/usdRi/*.h")}
 usd_ri_prj["libs"] = libs + ["tf", "vt", "sdf", "usd", "usdShade", "usdGeom", "usdLux"]
+usd_ri_prj["defs"] = _addDefs("usdRi", usd_ri_prj["defs"])
 
 prjs.append(usd_ri_prj)
 usds.append("usd-usd-usdRi")
@@ -919,6 +947,7 @@ usd_skel_prj["alias"] = "usd-usd-usdSkel"
 usd_skel_prj["srcs"] = _fpath("pxr/usd/lib/usdSkel", usd_skels)
 usd_skel_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdSkel"): excons.glob("pxr/usd/lib/usdSkel/*.h")}
 usd_skel_prj["libs"] = libs + ["arch", "gf", "tf", "trace", "vt", "work", "sdf", "usd", "usdGeom"]
+usd_skel_prj["defs"] = _addDefs("usdSkel", usd_skel_prj["defs"])
 
 prjs.append(usd_skel_prj)
 usds.append("usd-usd-usdSkel")
@@ -936,6 +965,7 @@ usd_ui_prj["alias"] = "usd-usd-usdUI"
 usd_ui_prj["srcs"] = _fpath("pxr/usd/lib/usdUI", usd_uis)
 usd_ui_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdUI"): excons.glob("pxr/usd/lib/usdUI/*.h")}
 usd_ui_prj["libs"] = libs + ["tf", "vt", "sdf", "usd"]
+usd_ui_prj["defs"] = _addDefs("usdUI", usd_ui_prj["defs"])
 
 prjs.append(usd_ui_prj)
 usds.append("usd-usd-usdUI")
@@ -944,20 +974,21 @@ usds.append("usd-usd-usdUI")
 #  usdUtils
 # --------------------------------------------
 
-usd_uis = ["authoring.cpp", "coalescingDiagnosticDelegate.cpp",
-           "debugCodes.cpp", "dependencies.cpp", "flattenLayerStack.cpp",
-           "introspection.cpp", "pipeline.cpp", "registeredVariantSet.cpp",
-           "sparseValueWriter.cpp", "stageCache.cpp", "stitch.cpp",
-           "stitchClips.cpp", "timeCodeRange.cpp"]
+usd_utils = ["authoring.cpp", "coalescingDiagnosticDelegate.cpp",
+             "debugCodes.cpp", "dependencies.cpp", "flattenLayerStack.cpp",
+             "introspection.cpp", "pipeline.cpp", "registeredVariantSet.cpp",
+             "sparseValueWriter.cpp", "stageCache.cpp", "stitch.cpp",
+             "stitchClips.cpp", "timeCodeRange.cpp"]
 
-usd_ui_prj = prjs_default.copy()
-usd_ui_prj["name"] = "usdUtils"
-usd_ui_prj["alias"] = "usd-usd-usdUtils"
-usd_ui_prj["srcs"] = _fpath("pxr/usd/lib/usdUtils", usd_uis)
-usd_ui_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdUtils"): excons.glob("pxr/usd/lib/usdUtils/*.h")}
-usd_ui_prj["libs"] = libs + ["arch", "tf", "gf", "js", "vt", "pcp", "ar", "sdf", "plug", "trace", "kind", "work", "usd", "usdGeom"]
+usd_utils_prj = prjs_default.copy()
+usd_utils_prj["name"] = "usdUtils"
+usd_utils_prj["alias"] = "usd-usd-usdUtils"
+usd_utils_prj["srcs"] = _fpath("pxr/usd/lib/usdUtils", usd_utils)
+usd_utils_prj["install"] = {os.path.join(out_incdir, "pxr/usd/usdUtils"): excons.glob("pxr/usd/lib/usdUtils/*.h")}
+usd_utils_prj["libs"] = libs + ["arch", "tf", "gf", "js", "vt", "pcp", "ar", "sdf", "plug", "trace", "kind", "work", "usd", "usdGeom"]
+usd_utils_prj["defs"] = _addDefs("usdUtils", usd_utils_prj["defs"])
 
-prjs.append(usd_ui_prj)
+prjs.append(usd_utils_prj)
 usds.append("usd-usd-usdUtils")
 
 
