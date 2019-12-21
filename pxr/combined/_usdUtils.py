@@ -1,0 +1,38 @@
+import pxr._usdCombined
+
+
+StitchClipsTemplate = pxr._usdCombined.StitchClipsTemplate
+ExtractExternalReferences = pxr._usdCombined.ExtractExternalReferences
+StitchClipsTopology = pxr._usdCombined.StitchClipsTopology
+CreateNewUsdzPackage = pxr._usdCombined.CreateNewUsdzPackage
+GetAlphaAttributeNameForColor = pxr._usdCombined.GetAlphaAttributeNameForColor
+GetPrimaryUVSetName = pxr._usdCombined.GetPrimaryUVSetName
+UninstancePrimAtPath = pxr._usdCombined.UninstancePrimAtPath
+ModifyAssetPaths = pxr._usdCombined.ModifyAssetPaths
+StitchClips = pxr._usdCombined.StitchClips
+SparseAttrValueWriter = pxr._usdCombined.SparseAttrValueWriter
+AuthorCollection = pxr._usdCombined.AuthorCollection
+TimeCodeRange = pxr._usdCombined.TimeCodeRange
+GetDirtyLayers = pxr._usdCombined.GetDirtyLayers
+ComputeUsdStageStats = pxr._usdCombined.ComputeUsdStageStats
+CoalescingDiagnosticDelegate = pxr._usdCombined.CoalescingDiagnosticDelegate
+ComputeAllDependencies = pxr._usdCombined.ComputeAllDependencies
+CreateCollections = pxr._usdCombined.CreateCollections
+SparseValueWriter = pxr._usdCombined.SparseValueWriter
+GetMaterialsScopeName = pxr._usdCombined.GetMaterialsScopeName
+CoalescingDiagnosticDelegateSharedItem = pxr._usdCombined.CoalescingDiagnosticDelegateSharedItem
+GenerateClipTopologyName = pxr._usdCombined.GenerateClipTopologyName
+CoalescingDiagnosticDelegateItem = pxr._usdCombined.CoalescingDiagnosticDelegateItem
+UsdStageStatsKeys = pxr._usdCombined.UsdStageStatsKeys
+GetRegisteredVariantSets = pxr._usdCombined.GetRegisteredVariantSets
+StitchInfo = pxr._usdCombined.StitchInfo
+CoalescingDiagnosticDelegateUnsharedItem = pxr._usdCombined.CoalescingDiagnosticDelegateUnsharedItem
+CopyLayerMetadata = pxr._usdCombined.CopyLayerMetadata
+StitchLayers = pxr._usdCombined.StitchLayers
+GetPrimaryCameraName = pxr._usdCombined.GetPrimaryCameraName
+GetPrimAtPathWithForwarding = pxr._usdCombined.GetPrimAtPathWithForwarding
+CreateNewARKitUsdzPackage = pxr._usdCombined.CreateNewARKitUsdzPackage
+RegisteredVariantSet = pxr._usdCombined.RegisteredVariantSet
+GetModelNameFromRootLayer = pxr._usdCombined.GetModelNameFromRootLayer
+GetPrefName = pxr._usdCombined.GetPrefName
+ComputeCollectionIncludesAndExcludes = pxr._usdCombined.ComputeCollectionIncludesAndExcludes

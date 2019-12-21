@@ -1,0 +1,13 @@
+import pxr._usdCombined
+DefaultResolverContext = pxr._usdCombined.DefaultResolverContext
+SetPreferredResolver = pxr._usdCombined.SetPreferredResolver
+ResolverScopedCache = pxr._usdCombined.ResolverScopedCache
+IsPackageRelativePath = pxr._usdCombined.IsPackageRelativePath
+GetUnderlyingResolver = pxr._usdCombined.GetUnderlyingResolver
+DefaultResolver = pxr._usdCombined.DefaultResolver
+GetResolver = pxr._usdCombined.GetResolver
+JoinPackageRelativePath = pxr._usdCombined.JoinPackageRelativePath
+SplitPackageRelativePathOuter = pxr._usdCombined.SplitPackageRelativePathOuter
+ResolverContextBinder = pxr._usdCombined.ResolverContextBinder
+Resolver = pxr._usdCombined.Resolver
+SplitPackageRelativePathInner = pxr._usdCombined.SplitPackageRelativePathInner

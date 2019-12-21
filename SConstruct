@@ -472,15 +472,35 @@ def _addPrj(name, group, srcs, libs=None, install=None):
 
     prjs.append(prj)
 
-# TODO : delete this
-boost_static = False
+combined_srcs = {}
+combined_install = {}
+combined_defs = []
+combined_libs = []
 
 def _addPyPrj(name, group, srcs, libs=None, install=None):
     if boost_static:
-        TODO()
+        srcs = filter(lambda x: x not in ["module.cpp", "moduleDeps.cpp"], srcs)
+
+    srcdir = "pxr/{}/lib/{}".format(group, name)
+    srcfiles = map(lambda x: os.path.join(srcdir, x), srcs)
+    pydir = "lib/python/pxr/{}{}".format(name[0].upper(), name[1:])
+    pyfiles = {pydir: excons.glob(os.path.join(srcdir, "*.py"))}
+
+    if install:
+        pyfiles.update(install)
+
+    if boost_static:
+        pyfiles[pydir].append(os.path.abspath("pxr/combined/_{}.py".format(name)))
+        combined_srcs[name] = srcfiles
+        combined_install.update(pyfiles)
+        combined_defs.extend(_addDefs(name, []))
+        if libs:
+            combined_libs.extend(libs)
+
     else:
         alias = "usd-py-{}-{}".format(group, name)
         grpname = "usd-py-{}".format(group)
+
         if grpname not in groups:
             groups[grpname] = []
         groups[grpname].append(alias)
@@ -489,16 +509,13 @@ def _addPyPrj(name, group, srcs, libs=None, install=None):
         prj["name"] = "_" + name
         prj["alias"] = alias
         prj["defs"] = _addPyDefs(name, prj["defs"])
-        prj["prefix"] = "lib/python/pxr/{}{}".format(name[0].upper(), name[1:])
-
-        srcdir = "pxr/{}/lib/{}".format(group, name)
-        prj["srcs"] = map(lambda x: os.path.join(srcdir, x), srcs)
+        prj["prefix"] = pydir
+        prj["srcs"] = srcfiles
 
         if libs:
             prj["libs"] = prj["libs"] + libs
 
-        if install:
-            prj["install"] = install
+        prj["install"] = pyfiles
 
         prjs.append(prj)
 
@@ -1111,6 +1128,35 @@ usd_util_pys = ["moduleDeps.cpp", "module.cpp", "wrapAuthoring.cpp",
 
 if build_python:
     _addPyPrj("usdUtils", "usd", usd_util_pys, libs=["usdUtils"])
+
+
+# --------------------------------------------
+#  combined module
+# --------------------------------------------
+def GenPy(target, source, env):
+    tgt = target[0].get_abspath()
+    dgt = os.path.dirname(tgt)
+    if not os.path.isdir(dgt):
+        os.makedirs(dgt)
+
+    with open(tgt, "w") as wf:
+        pass
+
+if build_python and boost_static:
+    combined_srcs["combined"] = ["pxr/combined/combined.cpp"]
+    combined_defs.append("USD_PY_AS_ONE_MODULE")
+    prj = py_default.copy()
+    prj["name"] = "_usdCombined"
+    prj["alias"] = "usd-py-combined"
+    prj["defs"] = prj["defs"] + combined_defs
+    prj["cppflags"] = prj["cppflags"] + " -Wno-macro-redefined"
+    prj["prefix"] = "lib/python/pxr"
+    prj["srcs"] = combined_srcs
+    prj["incdirs"] = prj["incdirs"] + [os.path.abspath(".")]
+    prj["libs"] = prj["libs"] + combined_libs
+    prj["install"] = combined_install
+    prj["deps"] = env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
+    prjs.append(prj)
 
 
 # excons.AddHelpOptions(USD="""USD OPTIONS
