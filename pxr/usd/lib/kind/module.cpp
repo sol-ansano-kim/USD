@@ -29,6 +29,6 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 TF_WRAP_MODULE
 {
-    TF_WRAP( Registry );
+    TF_WRAP( KindRegistry );
     TF_WRAP( Tokens );
 }

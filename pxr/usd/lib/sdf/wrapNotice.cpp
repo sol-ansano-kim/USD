@@ -59,7 +59,7 @@ TF_INSTANTIATE_NOTICE_WRAPPER(
 } // anonymous namespace 
 
 void
-wrapNotice()
+wrapSdfNotice()
 {
     scope s = class_<SdfNotice>("Notice", no_init);
 

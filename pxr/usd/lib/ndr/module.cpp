@@ -36,5 +36,5 @@ TF_WRAP_MODULE
     TF_WRAP( Node );
     TF_WRAP( NodeDiscoveryResult );
     TF_WRAP( Property );
-    TF_WRAP( Registry );
+    TF_WRAP( NdrRegistry );
 }
