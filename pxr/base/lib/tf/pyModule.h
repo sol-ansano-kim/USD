@@ -21,6 +21,8 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
+#ifndef USD_PY_AS_ONE_MODULE
+
 #ifdef TF_PYMODULE_H
 #error This file should only be included once in any given source (.cpp) file.
 #endif
@@ -111,5 +113,19 @@ void BOOST_PP_CAT(initlib, MFB_PACKAGE_NAME)() {
 
 #define TF_WRAP_MODULE static void WrapModule()
 
+#else // USD_PY_AS_ONE_MODULE
+
+#include "pxr/pxr.h"
+
+#include "pxr/base/arch/attributes.h"
+#include "pxr/base/tf/api.h"
+
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/stringize.hpp>
+#include <boost/python/module.hpp>
+
+#define TF_WRAP_MODULE static void BOOST_PP_CAT(MFB_PACKAGE_NAME, _WrapModule)()
+
+#endif // USD_PY_AS_ONE_MODULE
 // Declares and calls the class wrapper for x
 #define TF_WRAP(x) ARCH_HIDDEN void wrap ## x (); wrap ## x ()
