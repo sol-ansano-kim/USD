@@ -476,6 +476,7 @@ combined_srcs = {}
 combined_install = {}
 combined_defs = []
 combined_libs = []
+combined_modules = []
 
 def _addPyPrj(name, group, srcs, libs=None, install=None):
     if boost_static:
@@ -490,6 +491,7 @@ def _addPyPrj(name, group, srcs, libs=None, install=None):
         pyfiles.update(install)
 
     if boost_static:
+        combined_modules.append("{}{}".format(name[0].upper(), name[1:]))
         pyfiles[pydir].append(os.path.abspath("pxr/combined/_{}.py".format(name)))
         combined_srcs[name] = srcfiles
         combined_install.update(pyfiles)
@@ -1139,7 +1141,8 @@ def GenPy(target, source, env):
     if not os.path.isdir(dgt):
         os.makedirs(dgt)
 
-    with open(tgt, "w") as wf:
+    with open(tgt, "w") as f:
+        f.write("__all__ = {}".format(str(combined_modules)))
         pass
 
 if build_python and boost_static:
