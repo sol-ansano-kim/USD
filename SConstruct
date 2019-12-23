@@ -314,8 +314,7 @@ def GenerateConfig(target, source, env):
         with open(tgt, "w") as wf:
             wf.write(l)
 
-# TODO : add this to each dependencies
-GenConfig = env.Command(os.path.join(out_incdir, "pxr/pxr.h"), os.path.abspath("pxr/pxr.h.in"), GenerateConfig)
+config_files = env.Command(os.path.join(out_incdir, "pxr/pxr.h"), os.path.abspath("pxr/pxr.h.in"), GenerateConfig)
 
 # --------------------------------------------
 #  functions to export
@@ -416,6 +415,7 @@ prjs_default = {"type": "sharedlib",
                 "libdirs": [out_libdir],
                 "rpath": out_libdir,
                 "libs": libs,
+                "deps": config_files,
                 "symvis": "default",
                 "custom": customs}
 py_default = {"type": "dynamicmodule",
@@ -426,6 +426,7 @@ py_default = {"type": "dynamicmodule",
               "libdirs": [out_libdir],
               "rpath": out_libdir,
               "libs": libs,
+              "deps": config_files,
               "symvis": "default",
               "custom": customs + [RequireBoostPy]}
 
@@ -780,7 +781,7 @@ if support_python and combine_pys:
     prj["incdirs"] = prj["incdirs"] + [os.path.abspath(".")]
     prj["libs"] = prj["libs"] + combined_libs
     prj["install"] = combined_install
-    prj["deps"] = combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
+    prj["deps"] = prj["deps"] + combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
     prjs.append(prj)
 
 # excons.AddHelpOptions(USD="""USD OPTIONS
