@@ -1,6 +1,0 @@
-import pxr._usdCombined
-GetConcurrencyLimit = pxr._usdCombined.GetConcurrencyLimit
-SetMaximumConcurrencyLimit = pxr._usdCombined.SetMaximumConcurrencyLimit
-SetConcurrencyLimitArgument = pxr._usdCombined.SetConcurrencyLimitArgument
-SetConcurrencyLimit = pxr._usdCombined.SetConcurrencyLimit
-GetPhysicalConcurrencyLimit = pxr._usdCombined.GetPhysicalConcurrencyLimit

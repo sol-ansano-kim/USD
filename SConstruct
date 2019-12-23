@@ -485,6 +485,27 @@ combined_install = {}
 combined_defs = []
 combined_libs = []
 combined_modules = []
+combined_fake_pys = []
+
+def GenSubmodule(target, source, env):
+    tgt = target[0].get_abspath()
+    dgt = os.path.dirname(tgt)
+    if not os.path.isdir(dgt):
+        os.makedirs(dgt)
+
+    mod_name = os.path.splitext(os.path.basename(tgt))[0][1:]
+
+    with open(tgt, "w") as f:
+        f.write("import pxr._combined\n")
+        f.write("lcls = locals()\n")
+        f.write("for k, v in pxr._combined.{}{}.items():\n".format(mod_name[0].upper(), mod_name[1:]))
+        f.write("    if k in lcls:\n")
+        f.write("        continue\n")
+        f.write("    lcls[k] = v\n")
+        f.write("locals().pop(\"lcls\")\n")
+        f.write("locals().pop(\"pxr\")\n")
+        f.write("locals().pop(\"k\")\n")
+        f.write("locals().pop(\"v\")\n")
 
 def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
     srcdir = "pxr/{}/lib/{}".format(group, name)
@@ -496,9 +517,9 @@ def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
         pyfiles.update(install)
 
     if combinePys:
-        combined_modules.append("{}{}".format(name[0].upper(), name[1:]))
-        # TODO : generate each submodules in _usdCombined's initializing
-        pyfiles[pydir].append(os.path.abspath("pxr/combined/_{}.py".format(name)))
+        submod_name = "{}{}".format(name[0].upper(), name[1:])
+        combined_modules.append(submod_name)
+        combined_fake_pys.extend(env.Command(os.path.abspath(os.path.join(out_libdir, "python/pxr/{}/_{}.py").format(submod_name, name)), "", GenSubmodule))
         combined_srcs[name] = srcs
         combined_install.update(pyfiles)
         combined_defs.extend(_addDefs(name, []))
@@ -746,10 +767,11 @@ def GenPy(target, source, env):
         f.write("__all__ = {}".format(str(combined_modules)))
         pass
 
+
 if support_python and combine_pys:
     combined_srcs["combined"] = ["pxr/combined/combined.cpp"]
     prj = py_default.copy()
-    prj["name"] = "_usdCombined"
+    prj["name"] = "_combined"
     prj["alias"] = "usd-py-combined"
     prj["defs"] = prj["defs"] + combined_defs
     prj["cppflags"] = prj["cppflags"] + " -Wno-macro-redefined"
@@ -758,9 +780,8 @@ if support_python and combine_pys:
     prj["incdirs"] = prj["incdirs"] + [os.path.abspath(".")]
     prj["libs"] = prj["libs"] + combined_libs
     prj["install"] = combined_install
-    prj["deps"] = env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
+    prj["deps"] = combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
     prjs.append(prj)
-
 
 # excons.AddHelpOptions(USD="""USD OPTIONS
 #   usd-static=0|1        : Toggle between static and shared library build [1]""")

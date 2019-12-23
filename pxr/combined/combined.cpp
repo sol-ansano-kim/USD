@@ -1,4 +1,6 @@
 #include <boost/python.hpp>
+#include <set>
+using namespace boost::python;
 
 
 #ifdef TF_EXPORTS
@@ -162,76 +164,143 @@
     #include "pxr/usd/lib/usdUtils/module.cpp"
 #endif // USDUTILS_EXPORTS
 
-#include <iostream> 
-BOOST_PYTHON_MODULE(_usdCombined)
+
+class Categorizer
 {
+    public:
+        Categorizer()
+        {
+            list items = extract<list>(m_module.attr("__dict__").attr("items")());
+            size_t length = len(items);
+            for (size_t i = 0; i < length; ++i)
+            {
+                const char* n = PyString_AS_STRING(object(items[i][0]).ptr());
+                m_prev.insert(n);
+            }
+        }
+
+        ~Categorizer() {};
+
+        void categorize(const char *name)
+        {
+            dict copy_items;
+
+            list items = extract<list>(m_module.attr("__dict__").attr("items")());
+            size_t length = len(items);
+            for (size_t i = 0; i < length; ++i)
+            {
+                const char* n = PyString_AS_STRING(object(items[i][0]).ptr());
+                std::set<const char *>::iterator it = m_prev.find(n);
+                if (it == m_prev.end())
+                {
+                    m_prev.insert(n);
+                    copy_items[n] = object(items[i][1]);
+                }
+            }
+
+            m_module.attr(name) = copy_items;
+        }
+
+    private:
+        std::set<const char *> m_prev;
+        scope m_module;
+};
+
+
+BOOST_PYTHON_MODULE(_combined)
+{
+    Categorizer ct;
+
     #ifdef TF_EXPORTS
         tf_WrapModule();
+        ct.categorize("Tf");
     #endif
     #ifdef GF_EXPORTS
         gf_WrapModule();
+        ct.categorize("Gf");
     #endif
     #ifdef TRACE_EXPORTS
         trace_WrapModule();
+        ct.categorize("Trace");
     #endif
     #ifdef WORK_EXPORTS
         work_WrapModule();
+        ct.categorize("Work");
     #endif
     #ifdef PLUG_EXPORTS
         plug_WrapModule();
+        ct.categorize("Plug");
     #endif
     #ifdef VT_EXPORTS
         vt_WrapModule();
+        ct.categorize("Vt");
     #endif
     #ifdef AR_EXPORTS
         ar_WrapModule();
+        ct.categorize("Ar");
     #endif
     #ifdef KIND_EXPORTS
         kind_WrapModule();
+        ct.categorize("Kind");
     #endif
     #ifdef SDF_EXPORTS
         sdf_WrapModule();
+        ct.categorize("Sdf");
     #endif
     #ifdef NDR_EXPORTS
         ndr_WrapModule();
+        ct.categorize("Ndr");
     #endif
     #ifdef SDR_EXPORTS
         sdr_WrapModule();
+        ct.categorize("Sdr");
     #endif
     #ifdef PCP_EXPORTS
         pcp_WrapModule();
+        ct.categorize("Pcp");
     #endif
     #ifdef USD_EXPORTS
         usd_WrapModule();
+        ct.categorize("Usd");
     #endif
     #ifdef USDGEOM_EXPORTS
         usdGeom_WrapModule();
+        ct.categorize("UsdGeom");
     #endif
     #ifdef USDVOL_EXPORTS
         usdVol_WrapModule();
+        ct.categorize("UsdVol");
     #endif
     #ifdef USDLUX_EXPORTS
         usdLux_WrapModule();
+        ct.categorize("UsdLux");
     #endif
     #ifdef USDSHADE_EXPORTS
         usdShade_WrapModule();
+        ct.categorize("UsdShade");
     #endif
     #ifdef USDRENDER_EXPORTS
         usdRender_WrapModule();
+        ct.categorize("UsdRender");
     #endif
     #ifdef USDHYDRA_EXPORTS
         usdHydra_WrapModule();
+        ct.categorize("UsdHydra");
     #endif
     #ifdef USDRI_EXPORTS
         usdRi_WrapModule();
+        ct.categorize("UsdRi");
     #endif
     #ifdef USDSKEL_EXPORTS
         usdSkel_WrapModule();
+        ct.categorize("UsdSkel");
     #endif
     #ifdef USDUI_EXPORTS
         usdUI_WrapModule();
+        ct.categorize("UsdUI");
     #endif
     #ifdef USDUTILS_EXPORTS
         usdUtils_WrapModule();
+        ct.categorize("UsdUtils");
     #endif
 }
