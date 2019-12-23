@@ -74,7 +74,7 @@ boost_static = 1 if excons.GetArgument("boost-static", 1, int) != 0 else 0
 combine_pys = boost_static = 1
 rv = excons.ExternalLibRequire("boost")
 if rv["require"]:
-    boost_inc = os.path.dirname(rv["incdir"])
+    boost_inc = rv["incdir"]
 else:
     excons.WarnOnce("Boost is require to build USD, please provide root directory using 'with-boost=' flag", tool="USD")
     sys.exit(1)
@@ -361,8 +361,9 @@ dependencies += out_osd
 # --------------------------------------------
 
 flags = ""
-defs = []
+defs = ["__TBB_NO_IMPLICIT_LINKAGE"]
 pydefs = ["BOOST_PYTHON_NO_PY_SIGNATURES"]
+
 if combine_pys:
     defs.append("USD_PY_AS_ONE_MODULE")
 
@@ -429,6 +430,10 @@ py_default = {"type": "dynamicmodule",
               "deps": config_files,
               "symvis": "default",
               "custom": customs + [RequireBoostPy]}
+bin_default = prjs_default.copy()
+bin_default["type"] = "program"
+bin_default["custom"] = [RequireBoost, python.Require]
+
 
 def _fpath(directory, filePaths):
     return map(lambda x: os.path.join(directory, x), filePaths)
@@ -546,9 +551,7 @@ def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
 
         prjs.append(prj)
 
-
 pxr_lib_args = ["PUBLIC_CLASSES", "PUBLIC_HEADERS", "PRIVATE_CLASSES", "PRIVATE_HEADERS", "CPPFILES", "LIBRARIES", "INCLUDE_DIRS", "RESOURCE_FILES", "PYTHON_PUBLIC_CLASSES", "PYTHON_PRIVATE_CLASSES", "PYTHON_PUBLIC_HEADERS", "PYTHON_PRIVATE_HEADERS", "PYTHON_CPPFILES", "PYMODULE_CPPFILES", "PYMODULE_FILES", "PYSIDE_UI_FILES"]
-
 
 def _addInstall(sources, dirname, prefix, result, suffix=None):
     for r in sources:
@@ -570,7 +573,6 @@ def _addInstall(sources, dirname, prefix, result, suffix=None):
             r += suffix
 
         result[key].append(os.path.join(dirname, r))
-
 
 def _buildLib(name, group, libs=None, buildPython=False):
     lines = []
@@ -794,8 +796,6 @@ def GenPy(target, source, env):
 
     with open(tgt, "w") as f:
         f.write("__all__ = {}".format(str(combined_modules)))
-        pass
-
 
 if support_python and combine_pys:
     combined_srcs["combined"] = ["pxr/combined/combined.cpp"]
@@ -812,13 +812,52 @@ if support_python and combine_pys:
     prj["deps"] = prj["deps"] + combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
     prjs.append(prj)
 
-# excons.AddHelpOptions(USD="""USD OPTIONS
-#   usd-static=0|1        : Toggle between static and shared library build [1]""")
+# ============================================
+#  bin
+# ============================================
+
+groups["usd-bin"] = []
+
+prj = bin_default.copy()
+prj["name"] = "sdfdump"
+prj["srcs"] = ["pxr/usd/bin/sdfdump/sdfdump.cpp"]
+prj["libs"] = ["arch", "tf", "plug", "sdf", "vt"]
+groups["usd-bin"].append("sdfdump")
+prjs.append(prj)
+
+prj = bin_default.copy()
+prj["name"] = "sdffilter"
+prj["srcs"] = ["pxr/usd/bin/sdffilter/sdffilter.cpp"]
+prj["libs"] = ["arch", "tf", "sdf", "vt"]
+groups["usd-bin"].append("sdffilter")
+prjs.append(prj)
+
+def GenBin(target, source, env):
+    src = source[0].get_abspath()
+    tgt = target[0].get_abspath()
+    dgt = os.path.dirname(tgt)
+    if not os.path.isdir(dgt):
+        os.makedirs(dgt)
+
+    with open(src, 'r') as s:
+        with open(tgt, 'w') as d:
+            for line in s:
+                d.write(line.replace('/pxrpythonsubst', "/usr/bin/env python"))
+    os.chmod(tgt, 0775)
+
+for py in excons.glob("pxr/usd/bin/*/*.py"):
+    name = os.path.splitext(os.path.basename(py))[0]
+    tg = env.Command(os.path.join(out_basedir, "bin", name), py, GenBin)
+    groups["usd-bin"].append(tg[0])
 
 
 targets = excons.DeclareTargets(env, prjs)
 for k, v in groups.items():
     env.Alias(k, v)
+
+
+# excons.AddHelpOptions(USD="""USD OPTIONS
+#   usd-static=0|1        : Toggle between static and shared library build [1]""")
 
 
 # Export("UsdName UsdPath RequireUsd")
