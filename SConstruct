@@ -32,21 +32,18 @@ def TODO():
 #  build options
 ##############################################
 
-staticlib = excons.GetArgument("usd-static", 0, int) != 0
 build_viewer = excons.GetArgument("usd-view", 1, int) != 0
 build_imaging = excons.GetArgument("usd-imaging", 0, int) != 0
-build_test = excons.GetArgument("usd-test", 1, int) != 0
-build_python = True
+support_python = excons.GetArgument("usd-python", 1, int) != 0
 boost_static = excons.GetArgument("boost-static", 0, int) != 0
+combine_pys = False
 
 if not build_imaging:
     excons.WarnOnce("Building USD VIEW will be ignored beacuase building USD IMAGING off. If you want to build it please turn it on by 'usd-imaging=1' flag", tool="USD")
     build_viewer = False
 
-py_v = excons.GetArgument("with-python")
-if not py_v:
-    build_python = False
-    excons.WarnOnce("Building USD VIEW will be ignored beacuase extenal lib python is not given, please provide python version by 'with-python=' flag", tool="USD")
+if not support_python:
+    excons.WarnOnce("Building USD VIEW will be ignored beacuase python binding off. If you want to build it please turn it on by 'usd-python=1' flag", tool="USD")
     build_viewer = False
 
 ## TODO : check GL
@@ -74,7 +71,7 @@ out_osd = []
 
 boost_inc = ""
 boost_static = 1 if excons.GetArgument("boost-static", 1, int) != 0 else 0
-
+combine_pys = boost_static = 1
 rv = excons.ExternalLibRequire("boost")
 if rv["require"]:
     boost_inc = os.path.dirname(rv["incdir"])
@@ -280,7 +277,7 @@ def GenerateConfig(target, source, env):
                   "PXR_EXTERNAL_NAMESPACE": "pxr",
                   "PXR_INTERNAL_NAMESPACE": "pxrInternal_v{}_{}".format(mjr, mnr),
                   "PXR_USE_NAMESPACES": "1",
-                  "PXR_PYTHON_SUPPORT_ENABLED": "1" if build_python else "0"}
+                  "PXR_PYTHON_SUPPORT_ENABLED": "1" if support_python else "0"}
 
     update = False
     st_file = os.path.abspath("pxr_config.status")
@@ -367,6 +364,8 @@ dependencies += out_osd
 flags = ""
 defs = []
 pydefs = ["BOOST_PYTHON_NO_PY_SIGNATURES"]
+if combine_pys:
+    defs.append("USD_PY_AS_ONE_MODULE")
 
 if sys.platform != "win32":
     flags += " -std=c++11 -Wall -pthread -Wno-deprecated -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-parameter"
@@ -405,7 +404,7 @@ else:
     libs += []
 
 customs = [RequireBoost, RequireTBB]
-if build_python:
+if support_python:
     customs += [RequireBoostPy, python.SoftRequire]
 
 prjs = []
@@ -446,6 +445,16 @@ def _addPyDefs(name, currentDefs):
 
 groups = {}
 
+def _filterModuleCpps(srcs):
+    new_srcs = []
+    for x in srcs:
+        if os.path.basename(x) in ["module.cpp", "moduleDeps.cpp"]:
+            continue
+
+        new_srcs.append(x)
+
+    return new_srcs
+
 def _addPrj(name, group, srcs, libs=None, install=None):
     alias = "usd-{}-{}".format(group, name)
     grpname = "usd-{}".format(group)
@@ -458,8 +467,7 @@ def _addPrj(name, group, srcs, libs=None, install=None):
     prj["alias"] = alias
     prj["defs"] = _addDefs(name, prj["defs"])
 
-    srcdir = "pxr/{}/lib/{}".format(group, name)
-    prj["srcs"] = map(lambda x: os.path.join(srcdir, x), srcs)
+    prj["srcs"] = srcs
 
     if libs:
         prj["libs"] = prj["libs"] + libs
@@ -478,22 +486,20 @@ combined_defs = []
 combined_libs = []
 combined_modules = []
 
-def _addPyPrj(name, group, srcs, libs=None, install=None):
-    if boost_static:
-        srcs = filter(lambda x: x not in ["module.cpp", "moduleDeps.cpp"], srcs)
-
+def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
     srcdir = "pxr/{}/lib/{}".format(group, name)
-    srcfiles = map(lambda x: os.path.join(srcdir, x), srcs)
+    # TODO : get it from pxr macro
     pydir = "lib/python/pxr/{}{}".format(name[0].upper(), name[1:])
     pyfiles = {pydir: excons.glob(os.path.join(srcdir, "*.py"))}
 
     if install:
         pyfiles.update(install)
 
-    if boost_static:
+    if combinePys:
         combined_modules.append("{}{}".format(name[0].upper(), name[1:]))
+        # TODO : generate each submodules in _usdCombined's initializing
         pyfiles[pydir].append(os.path.abspath("pxr/combined/_{}.py".format(name)))
-        combined_srcs[name] = srcfiles
+        combined_srcs[name] = srcs
         combined_install.update(pyfiles)
         combined_defs.extend(_addDefs(name, []))
         if libs:
@@ -512,7 +518,7 @@ def _addPyPrj(name, group, srcs, libs=None, install=None):
         prj["alias"] = alias
         prj["defs"] = _addPyDefs(name, prj["defs"])
         prj["prefix"] = pydir
-        prj["srcs"] = srcfiles
+        prj["srcs"] = srcs
 
         if libs:
             prj["libs"] = prj["libs"] + libs
@@ -521,616 +527,211 @@ def _addPyPrj(name, group, srcs, libs=None, install=None):
 
         prjs.append(prj)
 
+
+pxr_lib_args = ["PUBLIC_CLASSES", "PUBLIC_HEADERS", "PRIVATE_CLASSES", "PRIVATE_HEADERS", "CPPFILES", "LIBRARIES", "INCLUDE_DIRS", "RESOURCE_FILES", "PYTHON_PUBLIC_CLASSES", "PYTHON_PRIVATE_CLASSES", "PYTHON_PUBLIC_HEADERS", "PYTHON_PRIVATE_HEADERS", "PYTHON_CPPFILES", "PYMODULE_CPPFILES", "PYMODULE_FILES", "PYSIDE_UI_FILES"]
+
+def _buildLib(name, group, libs=None, install=None, buildPython=False):
+    lines = []
+    dirname = os.path.abspath("pxr/{}/lib/{}".format(group, name))
+    cmakefile = "{}/CMakeLists.txt".format(dirname)
+
+    with open(cmakefile, "r") as f:
+        lines = f.read().split("\n")
+
+    re_lib_st = re.compile("pxr_library[(]{}".format(name))
+    re_lib_end = re.compile("[)]")
+
+    defs = {}
+    cur = None
+
+    in_def = False
+    for l in lines:
+        l = l.strip()
+        if l.startswith("#"):
+            continue
+
+        if re_lib_st.search(l):
+            in_def = True
+
+        if not in_def:
+            continue
+
+        if re_lib_end.search(l):
+            in_def = False
+
+        if not in_def:
+            continue
+
+        ar = None
+        for a in pxr_lib_args:
+            if a == l:
+                ar = a
+                break
+        if ar:
+            cur = []
+            defs[ar] = cur
+            continue
+
+        if cur is None or not l:
+            continue
+
+        cur.append(l)
+
+    cpps = map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PUBLIC_CLASSES", []) + defs.get("PRIVATE_CLASSES", []))
+    cpps += map(lambda x: os.path.join(dirname, x), defs.get("CPPFILES", []))
+
+    # TODO : install resource files
+    # TODO : install header files
+    # TODO : install python files
+
+    if not buildPython:
+        _addPrj(name, group, cpps, libs=libs, install=install)
+    else:
+        cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PYTHON_PUBLIC_CLASSES", []) + defs.get("PYTHON_PRIVATE_CLASSES", []))
+        cpps += map(lambda x: os.path.join(dirname, x), defs.get("PYTHON_CPPFILES", []))
+        pycpps = map(lambda x: os.path.join(dirname, x), defs.get("PYMODULE_CPPFILES", []))
+        if combine_pys:
+            cpps = _filterModuleCpps(cpps)
+            pycpps = _filterModuleCpps(pycpps)
+
+        _addPrj(name, group, cpps, libs=libs, install=install)
+        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], combinePys=combine_pys)
+
+
 # ============================================
 #  base
 # ============================================
 
-# --------------------------------------------
-#  arch
-# --------------------------------------------
-archs = ["assumptions.cpp", "attributes.cpp", "daemon.cpp", "debugger.cpp",
-         "demangle.cpp", "env.cpp", "errno.cpp", "error.cpp", "fileSystem.cpp",
-         "function.cpp", "hash.cpp", "initConfig.cpp", "library.cpp",
-         "mallocHook.cpp", "regex.cpp", "stackTrace.cpp", "symbols.cpp",
-         "systemInfo.cpp", "threads.cpp", "timing.cpp", "virtualMemory.cpp",
-         "vsnprintf.cpp"]
+_buildLib("arch",
+          "base",
+          buildPython=support_python)
 
-_addPrj("arch", "base", archs)
+_buildLib("tf",
+          "base",
+          libs=["arch"],
+          install={os.path.join(out_incdir, "pxr/base/tf/pxrDoubleConversion"): excons.glob("pxr/base/lib/tf/pxrDoubleConversion/*.h"),
+                 os.path.join(out_incdir, "pxr/base/tf/pxrLZ4"): excons.glob("pxr/base/lib/tf/pxrLZ4/*.h")},
+          buildPython=support_python)
 
-# --------------------------------------------
-#  tf
-# --------------------------------------------
+_buildLib("gf",
+          "base",
+          libs=["arch", "tf"],
+          buildPython=support_python)
 
-tfs = ["atomicRenameUtil.cpp", "debugCodes.cpp", "noticeRegistry.cpp",
-       "anyUniquePtr.cpp", "anyWeakPtr.cpp", "atomicOfstreamWrapper.cpp",
-       "bitUtils.cpp", "debug.cpp", "debugNotice.cpp", "denseHashMap.cpp",
-       "denseHashSet.cpp", "diagnostic.cpp", "diagnosticBase.cpp",
-       "diagnosticHelper.cpp", "diagnosticMgr.cpp", "dl.cpp", "enum.cpp",
-       "envSetting.cpp", "error.cpp", "errorMark.cpp", "errorTransport.cpp",
-       "expiryNotifier.cpp", "fastCompression.cpp", "fileUtils.cpp",
-       "getenv.cpp", "hash.cpp", "iterator.cpp", "mallocTag.cpp", "notice.cpp",
-       "nullPtr.cpp", "ostreamMethods.cpp", "pathUtils.cpp",
-       "patternMatcher.cpp", "pointerAndBits.cpp", "pyLock.cpp", "refBase.cpp",
-       "refCount.cpp", "refPtr.cpp", "refPtrTracker.cpp", "regTest.cpp",
-       "registryManager.cpp", "safeOutputFile.cpp", "scoped.cpp",
-       "scopeDescription.cpp", "setenv.cpp", "singleton.cpp", "smallVector.cpp",
-       "stackTrace.cpp", "stacked.cpp", "status.cpp", "stl.cpp",
-       "stopwatch.cpp", "stringUtils.cpp", "templateString.cpp", "tf.cpp",
-       "token.cpp", "traits.cpp", "type.cpp", "typeFunctions.cpp",
-       "typeNotice.cpp", "warning.cpp", "weakBase.cpp", "weakPtr.cpp",
-       "weakPtrFacade.cpp", "initConfig.cpp", "preprocessorUtils.cpp",
-       "pxrDoubleConversion/double-conversion.cc",
-       "pxrDoubleConversion/bignum-dtoa.cc", "pxrDoubleConversion/bignum.cc",
-       "pxrDoubleConversion/cached-powers.cc", "pxrDoubleConversion/diy-fp.cc",
-       "pxrDoubleConversion/fast-dtoa.cc", "pxrDoubleConversion/fixed-dtoa.cc",
-       "pxrDoubleConversion/strtod.cc", "pxrLZ4/lz4.cpp"]
+_buildLib("js",
+          "base",
+          libs=["arch", "tf"],
+          install={os.path.join(out_incdir, "pxr/base/js/rapidjson"): excons.glob("pxr/base/lib/js/rapidjson/*")},
+          buildPython=support_python)
 
-_addPrj("tf",
-        "base",
-        tfs,
-        libs=["arch"],
-        install={os.path.join(out_incdir, "pxr/base/tf/pxrDoubleConversion"): excons.glob("pxr/base/lib/tf/pxrDoubleConversion/*.h"),
-                 os.path.join(out_incdir, "pxr/base/tf/pxrLZ4"): excons.glob("pxr/base/lib/tf/pxrLZ4/*.h")})
+_buildLib("trace",
+          "base",
+          libs=["arch", "tf", "js"],
+          buildPython=support_python)
 
-tf_pys = ["makePyConstructor.cpp", "pyAnnotatedBoolResult.cpp", "pyArg.cpp",
-          "pyCall.cpp", "pyCallContext.cpp", "pyClassMethod.cpp",
-          "pyContainerConversions.cpp", "pyEnum.cpp", "pyError.cpp",
-          "pyExceptionState.cpp", "pyFunction.cpp", "pyIdentity.cpp",
-          "pyInterpreter.cpp", "pyModule.cpp", "pyModuleNotice.cpp",
-          "pyNoticeWrapper.cpp", "pyObjectFinder.cpp", "pyObjWrapper.cpp",
-          "pyOptional.cpp", "pyOverride.cpp", "pyPolymorphic.cpp",
-          "pyPtrHelpers.cpp", "pyResultConversions.cpp", "pySingleton.cpp",
-          "pyTracing.cpp", "pyUtils.cpp", "pyWeakObject.cpp",
-          "pyWrapContext.cpp", "scriptModuleLoader.cpp", "wrapTypeHelpers.cpp",
-          "pyErrorInternal.cpp", "wrapAnyWeakPtr.cpp", "wrapCallContext.cpp",
-          "wrapDebug.cpp", "wrapDiagnostic.cpp", "wrapDiagnosticBase.cpp",
-          "wrapEnum.cpp", "wrapEnvSetting.cpp", "wrapError.cpp",
-          "wrapFileUtils.cpp", "wrapFunction.cpp", "wrapMallocTag.cpp",
-          "wrapNotice.cpp", "wrapPathUtils.cpp",
-          "wrapPyContainerConversions.cpp", "wrapPyModuleNotice.cpp",
-          "wrapPyObjWrapper.cpp", "wrapPyOptional.cpp", "wrapRefPtrTracker.cpp",
-          "wrapScopeDescription.cpp", "wrapScriptModuleLoader.cpp",
-          "wrapSingleton.cpp", "wrapStackTrace.cpp", "wrapStatus.cpp",
-          "wrapStopwatch.cpp", "wrapStringUtils.cpp", "wrapTemplateString.cpp",
-          "wrapTestPyAnnotatedBoolResult.cpp",
-          "wrapTestPyContainerConversions.cpp", "wrapTestPyStaticTokens.cpp",
-          "wrapTestTfPython.cpp", "wrapTestTfPyOptional.cpp", "wrapToken.cpp",
-          "wrapType.cpp", "wrapWarning.cpp", "module.cpp", "moduleDeps.cpp"]
+_buildLib("work",
+          "base",
+          libs=["tf", "trace"],
+          buildPython=support_python)
 
-if build_python:
-    _addPyPrj("tf", "base", tf_pys, libs=["tf"])
+_buildLib("plug",
+          "base",
+          libs=["arch", "tf", "trace", "js", "work"],
+          buildPython=support_python)
 
-# --------------------------------------------
-#  gf
-# --------------------------------------------
-
-gfs = ["bbox3d.cpp", "camera.cpp", "frustum.cpp", "gamma.cpp", "half.cpp",
-       "homogeneous.cpp", "ilmbase_half.cpp", "interval.cpp", "line.cpp",
-       "line2d.cpp", "lineSeg.cpp", "lineSeg2d.cpp", "math.cpp",
-       "matrixData.cpp", "matrix2d.cpp", "matrix2f.cpp", "matrix3f.cpp",
-       "matrix3d.cpp", "matrix4f.cpp", "matrix4d.cpp", "multiInterval.cpp",
-       "plane.cpp", "quatd.cpp", "quatf.cpp", "quath.cpp", "quaternion.cpp",
-       "range1d.cpp", "range1f.cpp", "range2d.cpp", "range2f.cpp",
-       "range3d.cpp", "range3f.cpp", "ray.cpp", "rect2i.cpp", "rotation.cpp",
-       "size2.cpp", "size3.cpp", "transform.cpp", "vec2d.cpp", "vec2f.cpp",
-       "vec2h.cpp", "vec2i.cpp", "vec3d.cpp", "vec3f.cpp", "vec3h.cpp",
-       "vec3i.cpp", "vec4d.cpp", "vec4f.cpp", "vec4h.cpp", "vec4i.cpp",
-       "ostreamHelpers.cpp"]
-
-_addPrj("gf", "base", gfs, libs=["arch", "tf"])
-
-gf_pys = ["pyBufferUtils.cpp", "moduleDeps.cpp", "module.cpp", "wrapBBox3d.cpp",
-          "wrapCamera.cpp", "wrapFrustum.cpp", "wrapGamma.cpp", "wrapHalf.cpp",
-          "wrapHomogeneous.cpp", "wrapInterval.cpp", "wrapLimits.cpp",
-          "wrapLine.cpp", "wrapLineSeg.cpp", "wrapMath.cpp", "wrapMatrix2d.cpp",
-          "wrapMatrix2f.cpp", "wrapMatrix3f.cpp", "wrapMatrix3d.cpp",
-          "wrapMatrix4f.cpp", "wrapMatrix4d.cpp", "wrapMultiInterval.cpp",
-          "wrapPlane.cpp", "wrapQuaternion.cpp", "wrapQuatd.cpp",
-          "wrapQuatf.cpp", "wrapQuath.cpp", "wrapRange1d.cpp",
-          "wrapRange1f.cpp", "wrapRange2d.cpp", "wrapRange2f.cpp",
-          "wrapRange3d.cpp", "wrapRange3f.cpp", "wrapRay.cpp", "wrapRect2i.cpp",
-          "wrapRotation.cpp", "wrapSize2.cpp", "wrapSize3.cpp",
-          "wrapTransform.cpp", "wrapVec2d.cpp", "wrapVec2f.cpp",
-          "wrapVec2h.cpp", "wrapVec2i.cpp", "wrapVec3d.cpp", "wrapVec3f.cpp",
-          "wrapVec3h.cpp", "wrapVec3i.cpp", "wrapVec4d.cpp", "wrapVec4f.cpp",
-          "wrapVec4h.cpp", "wrapVec4i.cpp"]
-
-if build_python:
-    _addPyPrj("gf", "base", gf_pys, libs=["gf"])
-
-# --------------------------------------------
-#  js
-# --------------------------------------------
-
-jss = ["json.cpp", "value.cpp", "utils.cpp"]
-
-_addPrj("js",
-        "base",
-        jss,
-        libs=["arch", "tf"],
-        install={os.path.join(out_incdir, "pxr/base/js/rapidjson"): excons.glob("pxr/base/lib/js/rapidjson/*")})
-
-# --------------------------------------------
-#  trace
-# --------------------------------------------
-
-traces = ["aggregateTree.cpp", "aggregateNode.cpp", "category.cpp",
-          "collection.cpp", "collectionNotice.cpp", "collector.cpp",
-          "counterAccumulator.cpp", "dataBuffer.cpp", "dynamicKey.cpp",
-          "event.cpp", "eventContainer.cpp", "eventData.cpp", "eventList.cpp",
-          "eventNode.cpp", "eventTree.cpp", "key.cpp", "reporter.cpp",
-          "reporterBase.cpp", "reporterDataSourceBase.cpp",
-          "reporterDataSourceCollection.cpp", "reporterDataSourceCollector.cpp",
-          "serialization.cpp", "staticKeyData.cpp", "threads.cpp",
-          "aggregateTreeBuilder.cpp", "eventTreeBuilder.cpp",
-          "jsonSerialization.cpp"]
-
-_addPrj("trace", "base", traces, libs=["arch", "tf", "js"])
-
-trace_pys = ["moduleDeps.cpp", "module.cpp", "wrapAggregateNode.cpp",
-             "wrapCollector.cpp", "wrapReporter.cpp", "wrapTestTrace.cpp"]
-
-if build_python:
-    _addPyPrj("trace", "base", trace_pys, libs=["trace"])
-
-# --------------------------------------------
-#  work
-# --------------------------------------------
-
-works = ["arenaDispatcher.cpp", "detachedTask.cpp", "dispatcher.cpp",
-         "loops.cpp", "reduce.cpp", "singularTask.cpp", "threadLimits.cpp",
-         "utils.cpp"]
-
-_addPrj("work", "base", works, libs=["tf", "trace"])
-
-work_pys = ["moduleDeps.cpp", "module.cpp", "wrapThreadLimits.cpp"]
-
-if build_python:
-    _addPyPrj("work", "base", work_pys, libs=["work"])
-
-# --------------------------------------------
-#  plug
-# --------------------------------------------
-
-plugs = ["interfaceFactory.cpp", "notice.cpp", "plugin.cpp", "registry.cpp",
-         "staticInterface.cpp", "debugCodes.cpp", "info.cpp",
-         "testPlugBase.cpp", "initConfig.cpp"]
-
-_addPrj("plug", "base", plugs, libs=["arch", "tf", "js", "trace", "work"])
-
-plug_pys = ["moduleDeps.cpp", "module.cpp", "wrapNotice.cpp", "wrapPlugin.cpp",
-            "wrapRegistry.cpp", "wrapTestPlugBase.cpp"]
-
-if build_python:
-    _addPyPrj("plug", "base", plug_pys, libs=["plug"])
-
-# --------------------------------------------
-#  vt
-# --------------------------------------------
-
-vts = ["array.cpp", "dictionary.cpp", "functions.cpp", "hash.cpp",
-       "streamOut.cpp", "types.cpp", "value.cpp"]
-
-_addPrj("vt", "base", vts, libs=["arch", "tf", "gf", "trace"])
-
-vt_pys = ["arrayPyBuffer.cpp", "valueFromPython.cpp", "wrapArray.cpp",
-          "moduleDeps.cpp", "module.cpp", "wrapArrayBase.cpp",
-          "wrapArrayFloat.cpp", "wrapArrayIntegral.cpp", "wrapArrayMatrix.cpp",
-          "wrapArrayQuaternion.cpp", "wrapArrayRange.cpp",
-          "wrapArrayString.cpp", "wrapArrayToken.cpp", "wrapArrayVec.cpp",
-          "wrapDictionary.cpp", "wrapValue.cpp"]
-
-if build_python:
-    _addPyPrj("vt", "base", vt_pys, libs=["vt"])
+_buildLib("vt",
+          "base",
+          libs=["arch", "tf", "gf", "trace"],
+          buildPython=support_python)
 
 # ============================================
 #  usd
 # ============================================
 
-# --------------------------------------------
-#  ar
-# --------------------------------------------
-
-ars = ["asset.cpp", "assetInfo.cpp", "filesystemAsset.cpp",
-       "packageResolver.cpp", "packageUtils.cpp", "resolver.cpp",
-       "resolverContext.cpp", "resolverContextBinder.cpp",
-       "resolverScopedCache.cpp", "debugCodes.cpp", "defaultResolver.cpp",
-       "defaultResolverContext.cpp"]
-
-_addPrj("ar", "usd", ars, libs=["arch", "tf", "plug", "vt", "js"])
-
-ar_pys = ["pyResolverContext.cpp", "moduleDeps.cpp", "module.cpp",
-          "wrapDefaultResolver.cpp", "wrapDefaultResolverContext.cpp",
-          "wrapPackageUtils.cpp", "wrapResolver.cpp", "wrapResolverContext.cpp",
-          "wrapResolverContextBinder.cpp", "wrapResolverScopedCache.cpp"]
-
-if build_python:
-    _addPyPrj("ar", "usd", ar_pys, libs=["ar"])
-
-# --------------------------------------------
-#  kind
-# --------------------------------------------
-
-kinds = ["registry.cpp"]
-
-_addPrj("kind", "usd", kinds, libs=["arch", "js", "tf", "plug"])
-
-kind_pys = ["moduleDeps.cpp", "module.cpp", "wrapRegistry.cpp", "wrapTokens.cpp"]
-
-if build_python:
-    _addPyPrj("kind", "usd", kind_pys, libs=["kind"])
-
-# --------------------------------------------
-#  sdf
-# --------------------------------------------
-
-sdfs = ["abstractData.cpp", "allowed.cpp", "assetPath.cpp", "attributeSpec.cpp",
-        "changeBlock.cpp", "changeList.cpp", "children.cpp",
-        "childrenPolicies.cpp", "childrenProxy.cpp", "childrenUtils.cpp",
-        "childrenView.cpp", "cleanupEnabler.cpp", "copyUtils.cpp", "data.cpp",
-        "declareHandles.cpp", "fileFormat.cpp", "identity.cpp", "layer.cpp",
-        "layerOffset.cpp", "layerStateDelegate.cpp", "layerTree.cpp",
-        "layerUtils.cpp", "listProxy.cpp", "listEditor.cpp",
-        "listEditorProxy.cpp", "listOp.cpp", "mapEditProxy.cpp",
-        "mapEditor.cpp", "namespaceEdit.cpp", "notice.cpp", "path.cpp",
-        "pathNode.cpp", "pathTable.cpp", "payload.cpp", "pool.cpp",
-        "primSpec.cpp", "propertySpec.cpp", "proxyPolicies.cpp",
-        "proxyTypes.cpp", "pseudoRootSpec.cpp", "reference.cpp",
-        "relationshipSpec.cpp", "schema.cpp", "site.cpp", "siteUtils.cpp",
-        "spec.cpp", "specType.cpp", "textFileFormat.cpp", "timeCode.cpp",
-        "tokens.cpp", "types.cpp", "valueTypeName.cpp", "variantSetSpec.cpp",
-        "variantSpec.cpp", "path.tab.cpp", "textFileFormat.tab.cpp",
-        "assetPathResolver.cpp", "changeManager.cpp", "cleanupTracker.cpp",
-        "connectionListEditor.cpp", "debugCodes.cpp", "fileFormatRegistry.cpp",
-        "fileIO.cpp", "fileIO_Common.cpp", "layerRegistry.cpp",
-        "listOpListEditor.cpp", "parserHelpers.cpp", "parserValueContext.cpp",
-        "pathParser.cpp", "subLayerListEditor.cpp", "textParserContext.cpp",
-        "valueTypeRegistry.cpp", "vectorListEditor.cpp", "path.lex.cpp",
-        "textFileFormat.lex.cpp"]
-
-_addPrj("sdf", "usd", sdfs, libs=["arch", "tf", "gf", "trace", "vt", "work", "ar", "js", "plug"])
-
-sdf_pys = ["pyChildrenProxy.cpp", "pyChildrenView.cpp", "pyListEditorProxy.cpp",
-           "pyListOp.cpp", "pyListProxy.cpp", "pyMapEditProxy.cpp",
-           "pySpec.cpp", "pyUtils.cpp", "moduleDeps.cpp", "module.cpp",
-           "wrapArrayAssetPath.cpp", "wrapArrayTimeCode.cpp",
-           "wrapAssetPath.cpp", "wrapAttributeSpec.cpp", "wrapChangeBlock.cpp",
-           "wrapCleanupEnabler.cpp", "wrapCopyUtils.cpp", "wrapFileFormat.cpp",
-           "wrapLayer.cpp", "wrapLayerOffset.cpp", "wrapLayerTree.cpp",
-           "wrapNamespaceEdit.cpp", "wrapNotice.cpp", "wrapPath.cpp",
-           "wrapPayload.cpp", "wrapPrimSpec.cpp", "wrapPropertySpec.cpp",
-           "wrapPseudoRootSpec.cpp", "wrapRelationshipSpec.cpp",
-           "wrapReference.cpp", "wrapSpec.cpp", "wrapTimeCode.cpp",
-           "wrapTypes.cpp", "wrapValueTypeName.cpp", "wrapVariantSpec.cpp",
-           "wrapVariantSetSpec.cpp"]
-
-if build_python:
-    _addPyPrj("sdf", "usd", sdf_pys, libs=["sdf"])
-
-# --------------------------------------------
-#  ndr
-# --------------------------------------------
-
-ndrs = ["debugCodes.cpp", "declare.cpp", "discoveryPlugin.cpp",
-        "filesystemDiscovery.cpp", "filesystemDiscoveryHelpers.cpp",
-        "node.cpp", "parserPlugin.cpp", "property.cpp", "registry.cpp"]
-
-_addPrj("ndr", "usd", ndrs, libs=["arch", "tf", "plug", "vt", "work", "ar", "sdf"])
-
-ndr_pys = ["moduleDeps.cpp", "module.cpp", "wrapDeclare.cpp",
-           "wrapDiscoveryPlugin.cpp", "wrapFilesystemDiscovery.cpp",
-           "wrapFilesystemDiscoveryHelpers.cpp", "wrapNode.cpp",
-           "wrapNodeDiscoveryResult.cpp", "wrapProperty.cpp",
-           "wrapRegistry.cpp"]
-
-if build_python:
-    _addPyPrj("ndr", "usd", ndr_pys, libs=["ndr"])
-
-# --------------------------------------------
-#  sdr
-# --------------------------------------------
-
-sdrs = ["registry.cpp", "shaderMetadataHelpers.cpp", "shaderNode.cpp",
-        "shaderProperty.cpp"]
-
-_addPrj("sdr", "usd", sdrs, libs=["arch", "tf", "vt", "ar", "ndr", "sdf", "gf"])
-
-sdr_pys = ["moduleDeps.cpp", "module.cpp", "wrapRegistry.cpp",
-           "wrapShaderNode.cpp", "wrapShaderProperty.cpp"]
-
-if build_python:
-    _addPyPrj("sdr", "usd", sdr_pys, libs=["sdr"])
-
-# --------------------------------------------
-#  pcp
-# --------------------------------------------
-
-pcps = ["arc.cpp", "cache.cpp", "changes.cpp", "composeSite.cpp",
-        "dependency.cpp", "dynamicFileFormatContext.cpp",
-        "dynamicFileFormatDependencyData.cpp", "errors.cpp", "instanceKey.cpp",
-        "iterator.cpp", "layerPrefetchRequest.cpp", "layerStack.cpp",
-        "layerStackIdentifier.cpp", "mapExpression.cpp", "mapFunction.cpp",
-        "namespaceEdits.cpp", "node.cpp", "pathTranslation.cpp",
-        "primIndex.cpp", "propertyIndex.cpp", "site.cpp",
-        "strengthOrdering.cpp", "targetIndex.cpp", "types.cpp",
-        "debugCodes.cpp", "dependencies.cpp", "diagnostic.cpp",
-        "instancing.cpp", "layerStackRegistry.cpp", "node_Iterator.cpp",
-        "primIndex_Graph.cpp", "primIndex_StackFrame.cpp", "statistics.cpp",
-        "utils.cpp"]
-
-_addPrj("pcp", "usd", pcps, libs=["arch", "tf", "trace", "vt", "sdf", "work", "ar"])
-
-pcp_pys = ["pyUtils.cpp", "moduleDeps.cpp", "module.cpp", "wrapCache.cpp",
-           "wrapDependency.cpp", "wrapDynamicFileFormatDependencyData.cpp",
-           "wrapErrors.cpp", "wrapInstanceKey.cpp", "wrapPrimIndex.cpp",
-           "wrapLayerStack.cpp", "wrapLayerStackIdentifier.cpp",
-           "wrapMapExpression.cpp", "wrapMapFunction.cpp", "wrapNode.cpp",
-           "wrapPathTranslation.cpp", "wrapPropertyIndex.cpp", "wrapSite.cpp",
-           "wrapTestChangeProcessor.cpp", "wrapTypes.cpp"]
-
-if build_python:
-    _addPyPrj("pcp", "usd", pcp_pys, libs=["pcp"])
-
-# --------------------------------------------
-#  usd
-# --------------------------------------------
-
-usds = ["apiSchemaBase.cpp", "attribute.cpp", "clipsAPI.cpp",
-        "attributeQuery.cpp", "collectionAPI.cpp",
-        "collectionMembershipQuery.cpp", "common.cpp", "crateInfo.cpp",
-        "debugCodes.cpp", "editContext.cpp", "editTarget.cpp",
-        "flattenUtils.cpp", "inherits.cpp", "interpolation.cpp", "modelAPI.cpp",
-        "notice.cpp", "object.cpp", "payloads.cpp", "prim.cpp",
-        "primCompositionQuery.cpp", "primData.cpp", "primDataHandle.cpp",
-        "primFlags.cpp", "primRange.cpp", "property.cpp", "references.cpp",
-        "relationship.cpp", "resolveInfo.cpp", "resolver.cpp", "schemaBase.cpp",
-        "schemaRegistry.cpp", "specializes.cpp", "stage.cpp", "stageCache.cpp",
-        "stageCacheContext.cpp", "stageLoadRules.cpp",
-        "stagePopulationMask.cpp", "timeCode.cpp", "tokens.cpp", "typed.cpp",
-        "usdFileFormat.cpp", "usdaFileFormat.cpp", "usdcFileFormat.cpp",
-        "usdzFileFormat.cpp", "variantSets.cpp", "zipFile.cpp", "clip.cpp",
-        "clipCache.cpp", "crateData.cpp", "crateFile.cpp", "instanceCache.cpp",
-        "instanceKey.cpp", "integerCoding.cpp", "interpolators.cpp",
-        "usdzResolver.cpp", "valueUtils.cpp"]
-
-_addPrj("usd", "usd", usds, libs=["arch", "kind", "pcp", "sdf", "ar", "plug", "tf", "js", "gf", "trace", "vt", "work"])
-
-usd_pys = ["pyEditContext.cpp", "pyConversions.cpp", "moduleDeps.cpp",
-           "module.cpp", "wrapAPISchemaBase.cpp", "wrapAttribute.cpp",
-           "wrapAttributeQuery.cpp", "wrapClipsAPI.cpp",
-           "wrapCollectionAPI.cpp", "wrapCollectionMembershipQuery.cpp",
-           "wrapCommon.cpp", "wrapCrateInfo.cpp", "wrapEditContext.cpp",
-           "wrapEditTarget.cpp", "wrapFlattenUtils.cpp", "wrapInherits.cpp",
-           "wrapInterpolation.cpp", "wrapModelAPI.cpp", "wrapNotice.cpp",
-           "wrapObject.cpp", "wrapPayloads.cpp", "wrapPrim.cpp",
-           "wrapPrimCompositionQuery.cpp", "wrapPrimFlags.cpp",
-           "wrapPrimRange.cpp", "wrapProperty.cpp", "wrapReferences.cpp",
-           "wrapRelationship.cpp", "wrapResolveInfo.cpp", "wrapSchemaBase.cpp",
-           "wrapSchemaRegistry.cpp", "wrapSpecializes.cpp", "wrapStage.cpp",
-           "wrapStageCache.cpp", "wrapStageCacheContext.cpp",
-           "wrapStageLoadRules.cpp", "wrapStagePopulationMask.cpp",
-           "wrapTokens.cpp", "wrapTimeCode.cpp", "wrapTyped.cpp",
-           "wrapUtils.cpp", "wrapVariantSets.cpp", "wrapVersion.cpp",
-           "wrapZipFile.cpp"]
-
-if build_python:
-    _addPyPrj("usd", "usd", usd_pys, libs=["usd"])
-
-# --------------------------------------------
-#  usdGeom
-# --------------------------------------------
-
-usd_geoms = ["debugCodes.cpp", "tokens.cpp", "bboxCache.cpp",
-             "constraintTarget.cpp", "xformCache.cpp", "basisCurves.cpp",
-             "boundable.cpp", "boundableComputeExtent.cpp", "camera.cpp",
-             "capsule.cpp", "cone.cpp", "cube.cpp", "curves.cpp",
-             "cylinder.cpp", "imageable.cpp", "gprim.cpp", "mesh.cpp",
-             "metrics.cpp", "modelAPI.cpp", "motionAPI.cpp", "nurbsCurves.cpp",
-             "nurbsPatch.cpp", "pointBased.cpp", "pointInstancer.cpp",
-             "points.cpp", "primvar.cpp", "primvarsAPI.cpp", "scope.cpp",
-             "sphere.cpp", "subset.cpp", "xform.cpp", "xformable.cpp",
-             "xformOp.cpp", "xformCommonAPI.cpp", "samplingUtils.cpp"]
-
-_addPrj("usdGeom", "usd", usd_geoms, libs=["arch", "js", "tf", "gf", "plug", "vt", "sdf", "trace", "usd", "work", "kind"])
-
-usd_geom_pys = ["moduleDeps.cpp", "module.cpp", "wrapBBoxCache.cpp",
-                "wrapBasisCurves.cpp", "wrapBoundable.cpp", "wrapCamera.cpp",
-                "wrapConstraintTarget.cpp", "wrapCapsule.cpp", "wrapCone.cpp",
-                "wrapCube.cpp", "wrapCurves.cpp", "wrapCylinder.cpp",
-                "wrapGprim.cpp", "wrapImageable.cpp", "wrapMesh.cpp",
-                "wrapMetrics.cpp", "wrapModelAPI.cpp", "wrapMotionAPI.cpp",
-                "wrapNurbsCurves.cpp", "wrapNurbsPatch.cpp",
-                "wrapPointBased.cpp", "wrapPointInstancer.cpp",
-                "wrapPoints.cpp", "wrapPrimvar.cpp", "wrapPrimvarsAPI.cpp",
-                "wrapScope.cpp", "wrapSphere.cpp", "wrapSubset.cpp",
-                "wrapTokens.cpp", "wrapXform.cpp", "wrapXformCache.cpp",
-                "wrapXformable.cpp", "wrapXformOp.cpp",
-                "wrapXformCommonAPI.cpp"]
-
-if build_python:
-    _addPyPrj("usdGeom", "usd", usd_geom_pys, libs=["usdGeom"])
-
-# --------------------------------------------
-#  usdVol
-# --------------------------------------------
-
-usd_vols = ["volume.cpp", "fieldBase.cpp", "fieldAsset.cpp", "field3DAsset.cpp",
-            "openVDBAsset.cpp", "tokens.cpp"]
-
-_addPrj("usdVol", "usd", usd_vols, libs=["tf", "sdf", "usd", "usdGeom"])
-
-usd_vol_pys = ["moduleDeps.cpp", "module.cpp", "wrapVolume.cpp",
-               "wrapFieldBase.cpp", "wrapFieldAsset.cpp",
-               "wrapField3DAsset.cpp", "wrapOpenVDBAsset.cpp", "wrapTokens.cpp"]
-
-if build_python:
-    _addPyPrj("usdVol", "usd", usd_vol_pys, libs=["usdVol"])
-
-# --------------------------------------------
-#  usdLux
-# --------------------------------------------
-
-usd_luxs = ["blackbody.cpp", "cylinderLight.cpp", "diskLight.cpp",
-            "distantLight.cpp", "domeLight.cpp", "geometryLight.cpp",
-            "light.cpp", "listAPI.cpp", "shapingAPI.cpp", "shadowAPI.cpp",
-            "lightFilter.cpp", "lightPortal.cpp", "rectLight.cpp",
-            "sphereLight.cpp", "tokens.cpp"]
-
-_addPrj("usdLux", "usd", usd_luxs, libs=["tf", "vt", "sdf", "usd", "usdGeom"])
-
-usd_lux_pys = ["module.cpp", "wrapCylinderLight.cpp", "wrapDiskLight.cpp",
-               "wrapDistantLight.cpp", "wrapDomeLight.cpp",
-               "wrapLightPortal.cpp", "wrapGeometryLight.cpp", "wrapLight.cpp",
-               "wrapListAPI.cpp", "wrapShapingAPI.cpp", "wrapShadowAPI.cpp",
-               "wrapLightFilter.cpp", "wrapRectLight.cpp",
-               "wrapSphereLight.cpp", "wrapTokens.cpp", "moduleDeps.cpp"]
-
-if build_python:
-    _addPyPrj("usdLux", "usd", usd_lux_pys, libs=["usdLux"])
-
-# --------------------------------------------
-#  usdShade
-# --------------------------------------------
-
-usd_shades = ["connectableAPI.cpp", "coordSysAPI.cpp", "input.cpp",
-              "material.cpp", "materialBindingAPI.cpp", "output.cpp",
-              "shader.cpp", "shaderDefParser.cpp", "shaderDefUtils.cpp",
-              "nodeGraph.cpp", "tokens.cpp", "utils.cpp"]
-
-_addPrj("usdShade", "usd", usd_shades, libs=["arch", "tf", "vt", "ndr", "sdf", "ar", "sdr", "pcp", "trace", "work", "usd", "usdGeom"])
-
-usd_shade_pys = ["moduleDeps.cpp", "module.cpp", "wrapConnectableAPI.cpp",
-                 "wrapCoordSysAPI.cpp", "wrapInput.cpp", "wrapMaterial.cpp",
-                 "wrapMaterialBindingAPI.cpp", "wrapOutput.cpp",
-                 "wrapShader.cpp", "wrapShaderDefParser.cpp",
-                 "wrapShaderDefUtils.cpp", "wrapNodeGraph.cpp",
-                 "wrapTokens.cpp", "wrapUtils.cpp"]
-
-if build_python:
-    _addPyPrj("usdShade", "usd", usd_shade_pys, libs=["usdShade"])
-
-# --------------------------------------------
-#  usdRender
-# --------------------------------------------
-
-usd_renders = ["product.cpp", "settings.cpp", "settingsAPI.cpp",
-               "settingsBase.cpp", "spec.cpp", "tokens.cpp", "var.cpp"]
-
-_addPrj("usdRender", "usd", usd_renders, libs=["arch", "gf", "tf", "vt", "sdf", "usd", "usdGeom"])
-
-usd_render_pys = ["moduleDeps.cpp", "module.cpp", "wrapProduct.cpp", "wrapSettingsAPI.cpp", "wrapSettingsBase.cpp", "wrapSettings.cpp", "wrapTokens.cpp", "wrapVar.cpp"]
-
-if build_python:
-    _addPyPrj("usdRender", "usd", usd_render_pys, libs=["usdRender"])
-
-# --------------------------------------------
-#  usdHydra
-# --------------------------------------------
-
-usd_hydras = ["tokens.cpp", "discoveryPlugin.cpp"]
-
-_addPrj("usdHydra", "usd", usd_hydras, libs=["ar", "tf", "ndr", "sdf", "plug", "usd", "usdShade"])
-
-usd_hydra_pys = ["moduleDeps.cpp", "module.cpp", "wrapTokens.cpp"]
-
-if build_python:
-    _addPyPrj("usdHydra", "usd", usd_hydra_pys, libs=["usdHydra"])
-
-# --------------------------------------------
-#  usdRi (should be optional?)
-# --------------------------------------------
-
-usd_ris = ["lightAPI.cpp", "lightFilterAPI.cpp", "lightPortalAPI.cpp",
-           "materialAPI.cpp", "pxrAovLight.cpp", "pxrBarnLightFilter.cpp",
-           "pxrCookieLightFilter.cpp", "pxrEnvDayLight.cpp",
-           "pxrIntMultLightFilter.cpp", "pxrRampLightFilter.cpp",
-           "pxrRodLightFilter.cpp", "risBxdf.cpp", "risIntegrator.cpp",
-           "risObject.cpp", "risOslPattern.cpp", "risPattern.cpp",
-           "rmanUtilities.cpp", "rslShader.cpp", "splineAPI.cpp",
-           "statementsAPI.cpp", "textureAPI.cpp", "tokens.cpp", "typeUtils.cpp"]
-
-_addPrj("usdRi", "usd", usd_ris, libs=["tf", "vt", "sdf", "usd", "usdShade", "usdGeom", "usdLux"])
-
-usd_ri_pys = ["moduleDeps.cpp", "module.cpp", "wrapLightAPI.cpp",
-              "wrapLightFilterAPI.cpp", "wrapLightPortalAPI.cpp",
-              "wrapMaterialAPI.cpp", "wrapPxrAovLight.cpp",
-              "wrapPxrBarnLightFilter.cpp", "wrapPxrCookieLightFilter.cpp",
-              "wrapPxrEnvDayLight.cpp", "wrapPxrIntMultLightFilter.cpp",
-              "wrapPxrRampLightFilter.cpp", "wrapPxrRodLightFilter.cpp",
-              "wrapRisBxdf.cpp", "wrapRisIntegrator.cpp", "wrapRisObject.cpp",
-              "wrapRisOslPattern.cpp", "wrapRisPattern.cpp",
-              "wrapRmanUtilities.cpp", "wrapRslShader.cpp", "wrapSplineAPI.cpp",
-              "wrapStatementsAPI.cpp", "wrapTextureAPI.cpp", "wrapTokens.cpp"]
-
-if build_python:
-    _addPyPrj("usdRi", "usd", usd_ri_pys, libs=["usdRi"])
-
-# --------------------------------------------
-#  usdSkel
-# --------------------------------------------
-
-usd_skels = ["animation.cpp", "animMapper.cpp", "animQuery.cpp",
-             "bakeSkinning.cpp", "bindingAPI.cpp", "blendShape.cpp",
-             "blendShapeQuery.cpp", "cache.cpp", "debugCodes.cpp",
-             "inbetweenShape.cpp", "packedJointAnimation.cpp", "root.cpp",
-             "skeleton.cpp", "skeletonQuery.cpp", "skinningQuery.cpp",
-             "tokens.cpp", "topology.cpp", "utils.cpp", "animQueryImpl.cpp",
-             "cacheImpl.cpp", "skelDefinition.cpp"]
-
-_addPrj("usdSkel", "usd", usd_skels, libs=["arch", "gf", "tf", "trace", "vt", "work", "sdf", "usd", "usdGeom"])
-
-usd_skel_pys = ["moduleDeps.cpp", "module.cpp", "wrapAnimation.cpp",
-                "wrapAnimMapper.cpp", "wrapAnimQuery.cpp",
-                "wrapBakeSkinning.cpp", "wrapBlendShapeQuery.cpp",
-                "wrapBinding.cpp", "wrapBindingAPI.cpp", "wrapBlendShape.cpp",
-                "wrapCache.cpp", "wrapInbetweenShape.cpp",
-                "wrapPackedJointAnimation.cpp", "wrapRoot.cpp",
-                "wrapSkeleton.cpp", "wrapSkeletonQuery.cpp",
-                "wrapSkinningQuery.cpp", "wrapTokens.cpp", "wrapTopology.cpp",
-                "wrapUtils.cpp"]
-
-if build_python:
-    _addPyPrj("usdSkel", "usd", usd_skel_pys, libs=["usdSkel"])
-
-# --------------------------------------------
-#  usdUI (should be optional?)
-# --------------------------------------------
-
-usd_uis = ["backdrop.cpp", "nodeGraphNodeAPI.cpp", "sceneGraphPrimAPI.cpp",
-           "tokens.cpp"]
-
-_addPrj("usdUI", "usd", usd_uis, libs=["tf", "vt", "sdf", "usd"])
-
-usd_ui_pys = ["moduleDeps.cpp", "module.cpp", "wrapBackdrop.cpp",
-              "wrapNodeGraphNodeAPI.cpp", "wrapSceneGraphPrimAPI.cpp",
-              "wrapTokens.cpp"]
-
-if build_python:
-    _addPyPrj("usdUI", "usd", usd_ui_pys, libs=["usdUI"])
-
-# --------------------------------------------
-#  usdUtils
-# --------------------------------------------
-
-usd_utils = ["authoring.cpp", "coalescingDiagnosticDelegate.cpp",
-             "debugCodes.cpp", "dependencies.cpp", "flattenLayerStack.cpp",
-             "introspection.cpp", "pipeline.cpp", "registeredVariantSet.cpp",
-             "sparseValueWriter.cpp", "stageCache.cpp", "stitch.cpp",
-             "stitchClips.cpp", "timeCodeRange.cpp"]
-
-_addPrj("usdUtils", "usd", usd_utils, libs=["arch", "tf", "gf", "js", "vt", "pcp", "ar", "sdf", "plug", "trace", "kind", "work", "usd", "usdGeom"])
-
-usd_util_pys = ["moduleDeps.cpp", "module.cpp", "wrapAuthoring.cpp",
-                "wrapCoalescingDiagnosticDelegate.cpp", "wrapDependencies.cpp",
-                "wrapFlattenLayerStack.cpp", "wrapIntrospection.cpp",
-                "wrapPipeline.cpp", "wrapRegisteredVariantSet.cpp",
-                "wrapSparseValueWriter.cpp", "wrapStageCache.cpp",
-                "wrapStitch.cpp", "wrapStitchClips.cpp",
-                "wrapTimeCodeRange.cpp"]
-
-if build_python:
-    _addPyPrj("usdUtils", "usd", usd_util_pys, libs=["usdUtils"])
-
+_buildLib("ar",
+          "usd",
+          libs=["arch", "tf", "js", "plug", "vt"],
+          buildPython=support_python)
+
+_buildLib("kind",
+          "usd",
+          libs=["arch", "tf", "js", "plug"],
+          buildPython=support_python)
+
+_buildLib("sdf",
+          "usd",
+          libs=["arch", "tf", "gf", "js", "trace", "vt", "work", "plug", "ar"],
+          buildPython=support_python)
+
+_buildLib("ndr",
+          "usd",
+          libs=["arch", "tf", "work", "plug", "vt", "ar", "sdf"],
+          buildPython=support_python)
+
+_buildLib("sdr",
+          "usd",
+          libs=["arch", "tf", "gf", "vt", "ar", "ndr", "sdf"],
+          buildPython=support_python)
+
+_buildLib("pcp",
+          "usd",
+          libs=["arch", "tf", "trace", "work", "vt", "ar", "sdf"],
+          buildPython=support_python)
+
+_buildLib("usd",
+          "usd",
+          libs=["arch", "tf", "gf", "js", "trace", "work", "plug", "vt", "ar", "kind", "sdf", "pcp"],
+          buildPython=support_python)
+
+_buildLib("usdGeom",
+          "usd",
+          libs=["arch", "tf", "gf", "js", "trace", "work", "plug", "vt", "kind", "sdf", "usd"],
+          buildPython=support_python)
+
+_buildLib("usdVol",
+          "usd",
+          libs=["tf", "sdf", "usd", "usdGeom"],
+          buildPython=support_python)
+
+_buildLib("usdLux",
+          "usd",
+          libs=["tf", "vt", "sdf", "usd", "usdGeom"],
+          buildPython=support_python)
+
+_buildLib("usdShade",
+          "usd",
+          libs=["arch", "tf", "trace", "work", "vt", "ar", "ndr", "sdr", "sdf", "pcp", "usd", "usdGeom"],
+          buildPython=support_python)
+
+_buildLib("usdRender",
+          "usd",
+          libs=["arch", "tf", "gf", "vt", "sdf", "usd", "usdGeom"],
+          buildPython=support_python)
+
+_buildLib("usdHydra",
+          "usd",
+          libs=["ar", "tf", "plug", "ndr", "sdf", "usd", "usdShade"],
+          buildPython=support_python)
+
+_buildLib("usdRi",
+          "usd",
+          libs=["tf", "vt", "sdf", "usd", "usdGeom", "usdShade", "usdLux"],
+          buildPython=support_python)
+
+_buildLib("usdSkel",
+          "usd",
+          libs=["arch", "tf", "gf", "trace", "work", "vt", "sdf", "usd", "usdGeom"],
+          buildPython=support_python)
+
+_buildLib("usdUI",
+          "usd",
+          libs=["tf", "vt", "sdf", "usd"],
+          buildPython=support_python)
+
+_buildLib("usdUtils",
+          "usd",
+          libs=["arch", "tf", "gf", "js", "trace", "plug", "work", "vt", "ar", "sdf", "pcp", "kind", "usd", "usdGeom"],
+          buildPython=support_python)
 
 # --------------------------------------------
 #  combined module
@@ -1145,9 +746,8 @@ def GenPy(target, source, env):
         f.write("__all__ = {}".format(str(combined_modules)))
         pass
 
-if build_python and boost_static:
+if support_python and combine_pys:
     combined_srcs["combined"] = ["pxr/combined/combined.cpp"]
-    combined_defs.append("USD_PY_AS_ONE_MODULE")
     prj = py_default.copy()
     prj["name"] = "_usdCombined"
     prj["alias"] = "usd-py-combined"
@@ -1164,8 +764,6 @@ if build_python and boost_static:
 
 # excons.AddHelpOptions(USD="""USD OPTIONS
 #   usd-static=0|1        : Toggle between static and shared library build [1]""")
-
-# TODO : install resource files
 
 
 targets = excons.DeclareTargets(env, prjs)
