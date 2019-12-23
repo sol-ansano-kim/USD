@@ -473,11 +473,8 @@ def _addPrj(name, group, srcs, libs=None, install=None):
     if libs:
         prj["libs"] = prj["libs"] + libs
 
-    headers = {os.path.join(out_incdir, "pxr/{}/{}".format(group, name)): excons.glob("pxr/{}/lib/{}/*.h".format(group, name))}
     if install:
-        headers.update(install)
-
-    prj["install"] = headers
+        prj["install"] = install
 
     prjs.append(prj)
 
@@ -509,20 +506,19 @@ def GenSubmodule(target, source, env):
         f.write("locals().pop(\"v\")\n")
 
 def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
-    srcdir = "pxr/{}/lib/{}".format(group, name)
-    # TODO : get it from pxr macro
-    pydir = "lib/python/pxr/{}{}".format(name[0].upper(), name[1:])
-    pyfiles = {pydir: excons.glob(os.path.join(srcdir, "*.py"))}
+    if not srcs:
+        return
 
-    if install:
-        pyfiles.update(install)
+    srcdir = "pxr/{}/lib/{}".format(group, name)
+    pydir = "lib/python/pxr/{}{}".format(name[0].upper(), name[1:])
 
     if combinePys:
         submod_name = "{}{}".format(name[0].upper(), name[1:])
         combined_modules.append(submod_name)
         combined_fake_pys.extend(env.Command(os.path.abspath(os.path.join(out_libdir, "python/pxr/{}/_{}.py").format(submod_name, name)), "", GenSubmodule))
         combined_srcs[name] = srcs
-        combined_install.update(pyfiles)
+        if install:
+            combined_install.update(install)
         combined_defs.extend(_addDefs(name, []))
         if libs:
             combined_libs.extend(libs)
@@ -545,14 +541,38 @@ def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
         if libs:
             prj["libs"] = prj["libs"] + libs
 
-        prj["install"] = pyfiles
+        if install:
+            prj["install"] = install
 
         prjs.append(prj)
 
 
 pxr_lib_args = ["PUBLIC_CLASSES", "PUBLIC_HEADERS", "PRIVATE_CLASSES", "PRIVATE_HEADERS", "CPPFILES", "LIBRARIES", "INCLUDE_DIRS", "RESOURCE_FILES", "PYTHON_PUBLIC_CLASSES", "PYTHON_PRIVATE_CLASSES", "PYTHON_PUBLIC_HEADERS", "PYTHON_PRIVATE_HEADERS", "PYTHON_CPPFILES", "PYMODULE_CPPFILES", "PYMODULE_FILES", "PYSIDE_UI_FILES"]
 
-def _buildLib(name, group, libs=None, install=None, buildPython=False):
+
+def _addInstall(sources, dirname, prefix, result, suffix=None):
+    for r in sources:
+        pdirs = []
+        pre = None
+        if ":" in r:
+            r, pp = r.split(":")
+            pdirs.append(os.path.dirname(pp))
+
+        if os.path.basename(r) != r:
+            pdirs.insert(0, os.path.dirname(r))
+
+        key = os.path.join(prefix, *pdirs)
+
+        if key not in result:
+            result[key] = []
+
+        if suffix:
+            r += suffix
+
+        result[key].append(os.path.join(dirname, r))
+
+
+def _buildLib(name, group, libs=None, buildPython=False):
     lines = []
     dirname = os.path.abspath("pxr/{}/lib/{}".format(group, name))
     cmakefile = "{}/CMakeLists.txt".format(dirname)
@@ -602,13 +622,24 @@ def _buildLib(name, group, libs=None, install=None, buildPython=False):
     cpps = map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PUBLIC_CLASSES", []) + defs.get("PRIVATE_CLASSES", []))
     cpps += map(lambda x: os.path.join(dirname, x), defs.get("CPPFILES", []))
 
-    # TODO : install resource files
-    # TODO : install header files
-    # TODO : install python files
+    install = {}
+    pyinstall = {}
+
+    _addInstall(defs.get("PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+    _addInstall(defs.get("PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+    _addInstall(defs.get("PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+    _addInstall(defs.get("PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+    _addInstall(defs.get("RESOURCE_FILES", []), dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)), install)
 
     if not buildPython:
         _addPrj(name, group, cpps, libs=libs, install=install)
     else:
+        _addInstall(defs.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+        _addInstall(defs.get("PYTHON_PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+        _addInstall(defs.get("PYTHON_PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+        _addInstall(defs.get("PYTHON_PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+        _addInstall(defs.get("PYMODULE_FILES", []), dirname, os.path.join(out_libdir, "python/pxr/{}{}".format(name[0].upper(), name[1:])), pyinstall)
+
         cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PYTHON_PUBLIC_CLASSES", []) + defs.get("PYTHON_PRIVATE_CLASSES", []))
         cpps += map(lambda x: os.path.join(dirname, x), defs.get("PYTHON_CPPFILES", []))
         pycpps = map(lambda x: os.path.join(dirname, x), defs.get("PYMODULE_CPPFILES", []))
@@ -617,7 +648,7 @@ def _buildLib(name, group, libs=None, install=None, buildPython=False):
             pycpps = _filterModuleCpps(pycpps)
 
         _addPrj(name, group, cpps, libs=libs, install=install)
-        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], combinePys=combine_pys)
+        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, combinePys=combine_pys)
 
 
 # ============================================
@@ -631,8 +662,6 @@ _buildLib("arch",
 _buildLib("tf",
           "base",
           libs=["arch"],
-          install={os.path.join(out_incdir, "pxr/base/tf/pxrDoubleConversion"): excons.glob("pxr/base/lib/tf/pxrDoubleConversion/*.h"),
-                 os.path.join(out_incdir, "pxr/base/tf/pxrLZ4"): excons.glob("pxr/base/lib/tf/pxrLZ4/*.h")},
           buildPython=support_python)
 
 _buildLib("gf",
@@ -643,7 +672,6 @@ _buildLib("gf",
 _buildLib("js",
           "base",
           libs=["arch", "tf"],
-          install={os.path.join(out_incdir, "pxr/base/js/rapidjson"): excons.glob("pxr/base/lib/js/rapidjson/*")},
           buildPython=support_python)
 
 _buildLib("trace",
