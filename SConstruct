@@ -3,6 +3,7 @@ import os
 import excons
 from excons.tools import boost
 from excons.tools import python
+from excons.tools import gl
 import functools
 import re
 import pprint
@@ -33,9 +34,8 @@ def TODO():
 ##############################################
 
 build_viewer = excons.GetArgument("usd-view", 1, int) != 0
-build_imaging = excons.GetArgument("usd-imaging", 0, int) != 0
+build_imaging = excons.GetArgument("usd-imaging", 1, int) != 0
 support_python = excons.GetArgument("usd-python", 1, int) != 0
-boost_static = excons.GetArgument("boost-static", 0, int) != 0
 combine_pys = False
 
 if not build_imaging:
@@ -52,6 +52,13 @@ if not support_python:
 ##############################################
 #  external libs
 ##############################################
+
+# TODO : external? 
+tbb_static = excons.GetArgument("tbb-static", 1, int)
+exr_static = excons.GetArgument("openexr-static", 1, int)
+ocio_static = excons.GetArgument("ocio-static", 1, int)
+osd_static = excons.GetArgument("osd-static", 1, int)
+oiio_static = excons.GetArgument("oiio-static", 1, int)
 
 ext_opts = {}
 out_zlib = []
@@ -75,6 +82,7 @@ combine_pys = boost_static = 1
 rv = excons.ExternalLibRequire("boost")
 if rv["require"]:
     boost_inc = rv["incdir"]
+    boost_root = os.path.dirname(boost_inc)
 else:
     excons.WarnOnce("Boost is require to build USD, please provide root directory using 'with-boost=' flag", tool="USD")
     sys.exit(1)
@@ -179,7 +187,7 @@ if build_imaging:
 
     rv = excons.ExternalLibRequire("openexr")
     if not rv["require"]:
-        ext_opts["openexr-static"] = 1
+        ext_opts["openexr-static"] = exr_static
         ext_opts["openexr-suffix"] = ""
         ext_opts = ext_opts.copy()
         ext_opts.update({"BOOST_ROOT": boost_root, "Boost_USE_STATIC_LIBS": boost_static})
@@ -202,7 +210,7 @@ if build_imaging:
 
     rv = excons.ExternalLibRequire("ocio")
     if not rv["require"]:
-        ext_opts["ocio-static"] = 1
+        ext_opts["ocio-static"] = ocio_static
         ext_opts["yamlcpp-static"] = 1
 
         ext_opts["tinyxml-static"] = 1
@@ -228,7 +236,7 @@ if build_imaging:
 
     rv = excons.ExternalLibRequire("osd")
     if not rv["require"]:
-        ext_opts["osd-static"] = 1
+        ext_opts["osd-static"] = osd_static
         excons.PrintOnce("USD: Build osd from sources ...")
         excons.cmake.AddConfigureDependencies("osd", out_tbb)
         excons.Call("OpenSubdiv", targets=["osd"], overrides=ext_opts, imp=["OsdCPUPath", "OsdGPUPath", "RequireOsdCPU"])
@@ -244,7 +252,7 @@ if build_imaging:
 
     rv = excons.ExternalLibRequire("oiio")
     if not rv["require"]:
-        ext_opts["oiio-static"] = 1
+        ext_opts["oiio-static"] = oiio_static
         excons.PrintOnce("USD: Build oiio from sources ...")
         excons.cmake.AddConfigureDependencies("oiio", out_zlib + out_lcms2 + out_tiff + out_jpeg + out_bz2 + out_exr + out_ocio)
         excons.Call("oiio", overrides=ext_opts, imp=["OiioPath", "OiioExtraLibPaths", "OiioVersion", "RequireOiio"])
@@ -406,6 +414,14 @@ else:
 customs = [RequireBoost, RequireTBB]
 if support_python:
     customs += [RequireBoostPy, python.SoftRequire]
+if build_imaging:
+    customs += [lambda x: (RequireIlmImf(x, static=exr_static)),
+                lambda x: (RequireOsdCPU(x, static=osd_static)),
+                lambda x: (RequireOCIO(x, static=ocio_static)),
+                lambda x: (RequireOiio(x, static=oiio_static)),
+                gl.Require]
+    if sys.platform == "darwin":
+        flags += " -framework AppKit"
 
 prjs = []
 
@@ -574,7 +590,29 @@ def _addInstall(sources, dirname, prefix, result, suffix=None):
 
         result[key].append(os.path.join(dirname, r))
 
-def _buildLib(name, group, libs=None, buildPython=False):
+def _resolveEnvs(srcs, envs):
+    reenv = re.compile("\$\{([^}{$]+)\}")
+    if not envs:
+        return srcs
+
+    new_srcs = []
+    for src in srcs:
+        if reenv.search(src):
+            encd = {}
+            for k in reenv.findall(src):
+                src = src.replace("${" + k + "}", envs.get(k, ""))
+
+        if not src:
+            continue
+
+        new_srcs.append(src)
+
+    return new_srcs
+
+def _buildLib(name, group, libs=None, buildPython=False, envs=None):
+    if envs is None:
+        envs = {}
+
     lines = []
     dirname = os.path.abspath("pxr/{}/lib/{}".format(group, name))
     cmakefile = "{}/CMakeLists.txt".format(dirname)
@@ -621,6 +659,9 @@ def _buildLib(name, group, libs=None, buildPython=False):
 
         cur.append(l)
 
+    for k in defs.keys():
+        defs[k] = _resolveEnvs(defs[k], envs)
+
     cpps = map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PUBLIC_CLASSES", []) + defs.get("PRIVATE_CLASSES", []))
     cpps += map(lambda x: os.path.join(dirname, x), defs.get("CPPFILES", []))
 
@@ -652,142 +693,261 @@ def _buildLib(name, group, libs=None, buildPython=False):
         _addPrj(name, group, cpps, libs=libs, install=install)
         _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, combinePys=combine_pys)
 
+# --------------------------------------------
+#  envs
+# --------------------------------------------
+envs = {}
 
-# ============================================
+if sys.platform == "darwin":
+    envs["GARCH_GLPLATFORMCONTEXT"] = "glPlatformContextDarwin"
+    envs["GARCH_GLPLATFORMDEBUGWINDOW"] = "glPlatformDebugWindowDarwin"
+    envs["GARCH_SOURCE_EXTENSION"] = "mm"
+elif sys.platform == "win32":
+    envs["GARCH_GLPLATFORMCONTEXT"] = "glPlatformContextWindows"
+    envs["GARCH_GLPLATFORMDEBUGWINDOW"] = "glPlatformDebugWindowWindows"
+    envs["GARCH_SOURCE_EXTENSION"] = "cpp"
+else:
+    envs["GARCH_GLPLATFORMCONTEXT"] = "glPlatformContextGLX"
+    envs["GARCH_GLPLATFORMDEBUGWINDOW"] = "glPlatformDebugWindowGLX"
+    envs["GARCH_SOURCE_EXTENSION"] = "cpp"
+
+# --------------------------------------------
 #  base
-# ============================================
+# --------------------------------------------
 
 _buildLib("arch",
           "base",
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("tf",
           "base",
           libs=["arch"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("gf",
           "base",
           libs=["arch", "tf"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("js",
           "base",
           libs=["arch", "tf"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("trace",
           "base",
           libs=["arch", "tf", "js"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("work",
           "base",
           libs=["tf", "trace"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("plug",
           "base",
           libs=["arch", "tf", "trace", "js", "work"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("vt",
           "base",
           libs=["arch", "tf", "gf", "trace"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
-# ============================================
+# --------------------------------------------
 #  usd
-# ============================================
+# --------------------------------------------
 
 _buildLib("ar",
           "usd",
           libs=["arch", "tf", "js", "plug", "vt"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("kind",
           "usd",
           libs=["arch", "tf", "js", "plug"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("sdf",
           "usd",
           libs=["arch", "tf", "gf", "js", "trace", "vt", "work", "plug", "ar"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("ndr",
           "usd",
           libs=["arch", "tf", "work", "plug", "vt", "ar", "sdf"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("sdr",
           "usd",
           libs=["arch", "tf", "gf", "vt", "ar", "ndr", "sdf"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("pcp",
           "usd",
           libs=["arch", "tf", "trace", "work", "vt", "ar", "sdf"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usd",
           "usd",
           libs=["arch", "tf", "gf", "js", "trace", "work", "plug", "vt", "ar", "kind", "sdf", "pcp"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdGeom",
           "usd",
           libs=["arch", "tf", "gf", "js", "trace", "work", "plug", "vt", "kind", "sdf", "usd"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdVol",
           "usd",
           libs=["tf", "sdf", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdLux",
           "usd",
           libs=["tf", "vt", "sdf", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdShade",
           "usd",
           libs=["arch", "tf", "trace", "work", "vt", "ar", "ndr", "sdr", "sdf", "pcp", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdRender",
           "usd",
           libs=["arch", "tf", "gf", "vt", "sdf", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdHydra",
           "usd",
           libs=["ar", "tf", "plug", "ndr", "sdf", "usd", "usdShade"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdRi",
           "usd",
           libs=["tf", "vt", "sdf", "usd", "usdGeom", "usdShade", "usdLux"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdSkel",
           "usd",
           libs=["arch", "tf", "gf", "trace", "work", "vt", "sdf", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdUI",
           "usd",
           libs=["tf", "vt", "sdf", "usd"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
 
 _buildLib("usdUtils",
           "usd",
           libs=["arch", "tf", "gf", "js", "trace", "plug", "work", "vt", "ar", "sdf", "pcp", "kind", "usd", "usdGeom"],
-          buildPython=support_python)
+          buildPython=support_python,
+          envs=envs)
+
+# --------------------------------------------
+#  imaging
+# --------------------------------------------
+
+_buildLib("garch",
+          "imaging",
+          libs=["tf", "gf"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hf",
+          "imaging",
+          libs=["tf", "trace", "plug"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hio",
+          "imaging",
+          libs=["arch", "tf", "trace", "vt", "hf"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("cameraUtil",
+          "imaging",
+          libs=["tf", "gf"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("pxOsd",
+          "imaging",
+          libs=["tf", "gf", "vt"],
+          buildPython=support_python,
+          envs=envs)
+
+glfenvs = envs.copy()
+if sys.platform != "win32" and sys.platform != "darwin":
+    glfenvs["optionalPublicClasses"] = "testGLContext"
+
+glfenvs["optionalCppFiles"] = "oiioImage.cpp"
+
+_buildLib("glf",
+          "imaging",
+          libs=["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
+          buildPython=support_python,
+          envs=glfenvs)
+
+_buildLib("hgi",
+          "imaging",
+          libs=["tf", "gf"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hgiGL",
+          "imaging",
+          libs=["arch", "tf", "trace", "hgi"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hd",
+          "imaging",
+          libs=["tf", "trace", "work", "plug", "vt", "sdf", "hf", "cameraUtil", "pxOsd"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hdSt",
+          "imaging",
+          libs=["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
+          buildPython=support_python,
+          envs=envs)
+
+_buildLib("hdx",
+          "imaging",
+          libs=["tf", "gf", "plug", "work", "vt", "sdf","garch", "cameraUtil", "glf", "pxOsd", "hd", "hdSt", "hgi"],
+          buildPython=support_python,
+          envs=envs)
 
 # --------------------------------------------
 #  combined module
 # --------------------------------------------
+
 def GenPy(target, source, env):
     tgt = target[0].get_abspath()
     dgt = os.path.dirname(tgt)
@@ -811,10 +971,11 @@ if support_python and combine_pys:
     prj["install"] = combined_install
     prj["deps"] = prj["deps"] + combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
     prjs.append(prj)
+    groups["usd-py-combined"] = ["_combined"]
 
-# ============================================
+# --------------------------------------------
 #  bin
-# ============================================
+# --------------------------------------------
 
 groups["usd-bin"] = []
 
@@ -851,13 +1012,19 @@ for py in excons.glob("pxr/usd/bin/*/*.py"):
     groups["usd-bin"].append(tg[0])
 
 
+# --------------------------------------------
+#  project
+# --------------------------------------------
+
+excons.AddHelpOptions(USD="""USD OPTIONS
+  usd-view=0|1          : include usd view building [1]
+  usd-view=0|1          : include usd imaging building [1]
+  usd-python=0|1        : include usd python building [1]""")
+
 targets = excons.DeclareTargets(env, prjs)
+
 for k, v in groups.items():
     env.Alias(k, v)
-
-
-# excons.AddHelpOptions(USD="""USD OPTIONS
-#   usd-static=0|1        : Toggle between static and shared library build [1]""")
-
+    env.Default(k)
 
 # Export("UsdName UsdPath RequireUsd")

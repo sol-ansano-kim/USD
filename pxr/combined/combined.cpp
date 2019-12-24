@@ -164,6 +164,36 @@ using namespace boost::python;
     #include "pxr/usd/lib/usdUtils/module.cpp"
 #endif // USDUTILS_EXPORTS
 
+#ifdef GRACH_EXPORTS
+    #define MFB_PACKAGE_NAME garch
+    #define MFB_ALT_PACKAGE_NAME garch
+    #define MFB_PACKAGE_MODULE Garch
+    #include "pxr/imaging/lib/garch/module.cpp"
+#endif // GRACH_EXPORTS
+
+#ifdef CAMERAUTIL_EXPORTS
+    #define MFB_PACKAGE_NAME cameraUtil
+    #define MFB_ALT_PACKAGE_NAME cameraUtil
+    #define MFB_PACKAGE_MODULE CameraUtil
+    #include "pxr/imaging/lib/cameraUtil/module.cpp"
+#endif // CAMERAUTIL_EXPORTS
+
+#ifdef PXOSD_EXPORTS
+    #define MFB_PACKAGE_NAME pxOsd
+    #define MFB_ALT_PACKAGE_NAME pxOsd
+    #define MFB_PACKAGE_MODULE PxOsd
+    #include "pxr/imaging/lib/pxOsd/module.cpp"
+#endif // PXOSD_EXPORTS
+
+#ifdef GLF_EXPORTS
+    #define MFB_PACKAGE_NAME glf
+    #define MFB_ALT_PACKAGE_NAME glf
+    #define MFB_PACKAGE_MODULE Glf
+    #include "pxr/imaging/lib/glf/module.cpp"
+#endif // GLF_EXPORTS
+
+
+
 
 class Categorizer
 {
@@ -214,93 +244,112 @@ BOOST_PYTHON_MODULE(_combined)
     #ifdef TF_EXPORTS
         tf_WrapModule();
         ct.categorize("Tf");
-    #endif
+    #endif // TF_EXPORTS
     #ifdef GF_EXPORTS
         gf_WrapModule();
         ct.categorize("Gf");
-    #endif
+    #endif // GF_EXPORTS
     #ifdef TRACE_EXPORTS
         trace_WrapModule();
         ct.categorize("Trace");
-    #endif
+    #endif // TRACE_EXPORTS
     #ifdef WORK_EXPORTS
         work_WrapModule();
         ct.categorize("Work");
-    #endif
+    #endif // WORK_EXPORTS
     #ifdef PLUG_EXPORTS
         plug_WrapModule();
         ct.categorize("Plug");
-    #endif
+    #endif // PLUG_EXPORTS
     #ifdef VT_EXPORTS
         vt_WrapModule();
         ct.categorize("Vt");
-    #endif
+    #endif // VT_EXPORTS
     #ifdef AR_EXPORTS
         ar_WrapModule();
         ct.categorize("Ar");
-    #endif
+    #endif // AR_EXPORTS
     #ifdef KIND_EXPORTS
         kind_WrapModule();
         ct.categorize("Kind");
-    #endif
+    #endif // KIND_EXPORTS
     #ifdef SDF_EXPORTS
         sdf_WrapModule();
         ct.categorize("Sdf");
-    #endif
+    #endif // SDF_EXPORTS
     #ifdef NDR_EXPORTS
         ndr_WrapModule();
         ct.categorize("Ndr");
-    #endif
+    #endif // NDR_EXPORTS
     #ifdef SDR_EXPORTS
         sdr_WrapModule();
         ct.categorize("Sdr");
-    #endif
+    #endif // SDR_EXPORTS
     #ifdef PCP_EXPORTS
         pcp_WrapModule();
         ct.categorize("Pcp");
-    #endif
+    #endif // PCP_EXPORTS
     #ifdef USD_EXPORTS
         usd_WrapModule();
         ct.categorize("Usd");
-    #endif
+    #endif // USD_EXPORTS
     #ifdef USDGEOM_EXPORTS
         usdGeom_WrapModule();
         ct.categorize("UsdGeom");
-    #endif
+    #endif // USDGEOM_EXPORTS
     #ifdef USDVOL_EXPORTS
         usdVol_WrapModule();
         ct.categorize("UsdVol");
-    #endif
+    #endif // USDVOL_EXPORTS
     #ifdef USDLUX_EXPORTS
         usdLux_WrapModule();
         ct.categorize("UsdLux");
-    #endif
+    #endif // USDLUX_EXPORTS
     #ifdef USDSHADE_EXPORTS
         usdShade_WrapModule();
         ct.categorize("UsdShade");
-    #endif
+    #endif // USDSHADE_EXPORTS
     #ifdef USDRENDER_EXPORTS
         usdRender_WrapModule();
         ct.categorize("UsdRender");
-    #endif
+    #endif // USDRENDER_EXPORTS
     #ifdef USDHYDRA_EXPORTS
         usdHydra_WrapModule();
         ct.categorize("UsdHydra");
-    #endif
+    #endif // USDHYDRA_EXPORTS
     #ifdef USDRI_EXPORTS
         usdRi_WrapModule();
         ct.categorize("UsdRi");
-    #endif
+    #endif // USDRI_EXPORTS
     #ifdef USDSKEL_EXPORTS
         usdSkel_WrapModule();
         ct.categorize("UsdSkel");
-    #endif
+    #endif // USDSKEL_EXPORTS
     #ifdef USDUI_EXPORTS
         usdUI_WrapModule();
         ct.categorize("UsdUI");
-    #endif
+    #endif // USDUI_EXPORTS
     #ifdef USDUTILS_EXPORTS
         usdUtils_WrapModule();
         ct.categorize("UsdUtils");
-    #endif
+    #endif // USDUTILS_EXPORTS
+    #ifdef GRACH_EXPORTS
+        garch_WrapModule();
+        ct.categorize("Garch");
+    #endif // GRACH_EXPORTS
+    #ifdef CAMERAUTIL_EXPORTS
+        cameraUtil_WrapModule();
+        ct.categorize("CameraUtil");
+    #endif // CAMERAUTIL_EXPORTS
+
+    #ifdef PXOSD_EXPORTS
+        pxOsd_WrapModule();
+        ct.categorize("PxOsd");
+    #endif // PXOSD_EXPORTS
+
+    #ifdef GLF_EXPORTS
+        glf_WrapModule();
+        ct.categorize("Glf");
+    #endif // GLF_EXPORTS
+
 }
