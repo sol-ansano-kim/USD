@@ -193,8 +193,6 @@ using namespace boost::python;
 #endif // GLF_EXPORTS
 
 
-
-
 class Categorizer
 {
     public:
@@ -220,6 +218,7 @@ class Categorizer
             for (size_t i = 0; i < length; ++i)
             {
                 const char* n = PyString_AS_STRING(object(items[i][0]).ptr());
+
                 std::set<const char *>::iterator it = m_prev.find(n);
                 if (it == m_prev.end())
                 {
@@ -229,10 +228,23 @@ class Categorizer
             }
 
             m_module.attr(name) = copy_items;
+
+            items = extract<list>(m_module.attr("__dict__").attr("keys")());
+            length = len(items);
+
+            for (size_t i = 0; i < length; ++i)
+            {
+                const char* n = PyString_AS_STRING(object(items[i]).ptr());
+                std::set<const char *>::iterator it = m_prev.find(n);
+                if (it == m_prev.end())
+                {
+                    m_prev.insert(n);
+                }
+            }
         }
 
     private:
-        std::set<const char *> m_prev;
+        std::set<const char*> m_prev;
         scope m_module;
 };
 
@@ -243,113 +255,110 @@ BOOST_PYTHON_MODULE(_combined)
 
     #ifdef TF_EXPORTS
         tf_WrapModule();
-        ct.categorize("Tf");
+        ct.categorize("__Contents_Tf");
     #endif // TF_EXPORTS
     #ifdef GF_EXPORTS
         gf_WrapModule();
-        ct.categorize("Gf");
+        ct.categorize("__Contents_Gf");
     #endif // GF_EXPORTS
     #ifdef TRACE_EXPORTS
         trace_WrapModule();
-        ct.categorize("Trace");
+        ct.categorize("__Contents_Trace");
     #endif // TRACE_EXPORTS
     #ifdef WORK_EXPORTS
         work_WrapModule();
-        ct.categorize("Work");
+        ct.categorize("__Contents_Work");
     #endif // WORK_EXPORTS
     #ifdef PLUG_EXPORTS
         plug_WrapModule();
-        ct.categorize("Plug");
+        ct.categorize("__Contents_Plug");
     #endif // PLUG_EXPORTS
     #ifdef VT_EXPORTS
         vt_WrapModule();
-        ct.categorize("Vt");
+        ct.categorize("__Contents_Vt");
     #endif // VT_EXPORTS
     #ifdef AR_EXPORTS
         ar_WrapModule();
-        ct.categorize("Ar");
+        ct.categorize("__Contents_Ar");
     #endif // AR_EXPORTS
     #ifdef KIND_EXPORTS
         kind_WrapModule();
-        ct.categorize("Kind");
+        ct.categorize("__Contents_Kind");
     #endif // KIND_EXPORTS
     #ifdef SDF_EXPORTS
         sdf_WrapModule();
-        ct.categorize("Sdf");
+        ct.categorize("__Contents_Sdf");
     #endif // SDF_EXPORTS
     #ifdef NDR_EXPORTS
         ndr_WrapModule();
-        ct.categorize("Ndr");
+        ct.categorize("__Contents_Ndr");
     #endif // NDR_EXPORTS
     #ifdef SDR_EXPORTS
         sdr_WrapModule();
-        ct.categorize("Sdr");
+        ct.categorize("__Contents_Sdr");
     #endif // SDR_EXPORTS
     #ifdef PCP_EXPORTS
         pcp_WrapModule();
-        ct.categorize("Pcp");
+        ct.categorize("__Contents_Pcp");
     #endif // PCP_EXPORTS
     #ifdef USD_EXPORTS
         usd_WrapModule();
-        ct.categorize("Usd");
+        ct.categorize("__Contents_Usd");
     #endif // USD_EXPORTS
     #ifdef USDGEOM_EXPORTS
         usdGeom_WrapModule();
-        ct.categorize("UsdGeom");
+        ct.categorize("__Contents_UsdGeom");
     #endif // USDGEOM_EXPORTS
     #ifdef USDVOL_EXPORTS
         usdVol_WrapModule();
-        ct.categorize("UsdVol");
+        ct.categorize("__Contents_UsdVol");
     #endif // USDVOL_EXPORTS
     #ifdef USDLUX_EXPORTS
         usdLux_WrapModule();
-        ct.categorize("UsdLux");
+        ct.categorize("__Contents_UsdLux");
     #endif // USDLUX_EXPORTS
     #ifdef USDSHADE_EXPORTS
         usdShade_WrapModule();
-        ct.categorize("UsdShade");
+        ct.categorize("__Contents_UsdShade");
     #endif // USDSHADE_EXPORTS
     #ifdef USDRENDER_EXPORTS
         usdRender_WrapModule();
-        ct.categorize("UsdRender");
+        ct.categorize("__Contents_UsdRender");
     #endif // USDRENDER_EXPORTS
     #ifdef USDHYDRA_EXPORTS
         usdHydra_WrapModule();
-        ct.categorize("UsdHydra");
+        ct.categorize("__Contents_UsdHydra");
     #endif // USDHYDRA_EXPORTS
     #ifdef USDRI_EXPORTS
         usdRi_WrapModule();
-        ct.categorize("UsdRi");
+        ct.categorize("__Contents_UsdRi");
     #endif // USDRI_EXPORTS
     #ifdef USDSKEL_EXPORTS
         usdSkel_WrapModule();
-        ct.categorize("UsdSkel");
+        ct.categorize("__Contents_UsdSkel");
     #endif // USDSKEL_EXPORTS
     #ifdef USDUI_EXPORTS
         usdUI_WrapModule();
-        ct.categorize("UsdUI");
+        ct.categorize("__Contents_UsdUI");
     #endif // USDUI_EXPORTS
     #ifdef USDUTILS_EXPORTS
         usdUtils_WrapModule();
-        ct.categorize("UsdUtils");
+        ct.categorize("__Contents_UsdUtils");
     #endif // USDUTILS_EXPORTS
     #ifdef GARCH_EXPORTS
         garch_WrapModule();
-        ct.categorize("Garch");
+        ct.categorize("__Contents_Garch");
     #endif // GARCH_EXPORTS
     #ifdef CAMERAUTIL_EXPORTS
         cameraUtil_WrapModule();
-        ct.categorize("CameraUtil");
+        ct.categorize("__Contents_CameraUtil");
     #endif // CAMERAUTIL_EXPORTS
-
     #ifdef PXOSD_EXPORTS
         pxOsd_WrapModule();
-        ct.categorize("PxOsd");
+        ct.categorize("__Contents_PxOsd");
     #endif // PXOSD_EXPORTS
-
     #ifdef GLF_EXPORTS
         glf_WrapModule();
-        ct.categorize("Glf");
+        ct.categorize("__Contents_Glf");
     #endif // GLF_EXPORTS
-
 }
