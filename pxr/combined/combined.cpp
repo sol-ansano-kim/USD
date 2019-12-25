@@ -214,184 +214,104 @@ using namespace boost::python;
 #endif // USDVIEWQ_EXPORTS
 
 
-class Categorizer
-{
-    public:
-        Categorizer()
-        {
-            list items = extract<list>(m_module.attr("__dict__").attr("items")());
-            size_t length = len(items);
-            for (size_t i = 0; i < length; ++i)
-            {
-                const char* n = PyString_AS_STRING(object(items[i][0]).ptr());
-                m_prev.insert(n);
-            }
-        }
-
-        ~Categorizer() {};
-
-        void categorize(const char *name)
-        {
-            dict copy_items;
-
-            list items = extract<list>(m_module.attr("__dict__").attr("items")());
-            size_t length = len(items);
-            for (size_t i = 0; i < length; ++i)
-            {
-                const char* n = PyString_AS_STRING(object(items[i][0]).ptr());
-
-                std::set<const char *>::iterator it = m_prev.find(n);
-                if (it == m_prev.end())
-                {
-                    m_prev.insert(n);
-                    copy_items[n] = object(items[i][1]);
-                }
-            }
-
-            m_module.attr(name) = copy_items;
-
-            items = extract<list>(m_module.attr("__dict__").attr("keys")());
-            length = len(items);
-
-            for (size_t i = 0; i < length; ++i)
-            {
-                const char* n = PyString_AS_STRING(object(items[i]).ptr());
-                std::set<const char *>::iterator it = m_prev.find(n);
-                if (it == m_prev.end())
-                {
-                    m_prev.insert(n);
-                }
-            }
-        }
-
-    private:
-        std::set<const char*> m_prev;
-        scope m_module;
+#define WRAP_MODULE(x) class BOOST_PP_CAT(_, x) {}; \
+{ \
+    boost::python::scope BOOST_PP_CAT(_scope_, x) = boost::python::class_<BOOST_PP_CAT(_, x)>(BOOST_PP_STRINGIZE(BOOST_PP_CAT(_, x)), boost::python::no_init); \
+    BOOST_PP_CAT(x, _WrapModule) (); \
 };
 
 
 BOOST_PYTHON_MODULE(_combined)
 {
-    Categorizer ct;
-
+    boost::python::scope module;
     #ifdef TF_EXPORTS
-        tf_WrapModule();
-        ct.categorize("__Contents_Tf");
-    #endif // TF_EXPORTS
+        WRAP_MODULE(tf)
+    #endif
     #ifdef GF_EXPORTS
-        gf_WrapModule();
-        ct.categorize("__Contents_Gf");
-    #endif // GF_EXPORTS
+        WRAP_MODULE(gf)
+    #endif
     #ifdef TRACE_EXPORTS
-        trace_WrapModule();
-        ct.categorize("__Contents_Trace");
-    #endif // TRACE_EXPORTS
+        WRAP_MODULE(trace)
+    #endif
     #ifdef WORK_EXPORTS
-        work_WrapModule();
-        ct.categorize("__Contents_Work");
-    #endif // WORK_EXPORTS
+        WRAP_MODULE(work)
+    #endif
     #ifdef PLUG_EXPORTS
-        plug_WrapModule();
-        ct.categorize("__Contents_Plug");
-    #endif // PLUG_EXPORTS
+        WRAP_MODULE(plug)
+    #endif
     #ifdef VT_EXPORTS
-        vt_WrapModule();
-        ct.categorize("__Contents_Vt");
-    #endif // VT_EXPORTS
+        WRAP_MODULE(vt)
+    #endif
     #ifdef AR_EXPORTS
-        ar_WrapModule();
-        ct.categorize("__Contents_Ar");
-    #endif // AR_EXPORTS
+        WRAP_MODULE(ar)
+    #endif
     #ifdef KIND_EXPORTS
-        kind_WrapModule();
-        ct.categorize("__Contents_Kind");
-    #endif // KIND_EXPORTS
+        WRAP_MODULE(kind)
+    #endif
     #ifdef SDF_EXPORTS
-        sdf_WrapModule();
-        ct.categorize("__Contents_Sdf");
-    #endif // SDF_EXPORTS
+        WRAP_MODULE(sdf)
+    #endif
     #ifdef NDR_EXPORTS
-        ndr_WrapModule();
-        ct.categorize("__Contents_Ndr");
-    #endif // NDR_EXPORTS
+        WRAP_MODULE(ndr)
+    #endif
     #ifdef SDR_EXPORTS
-        sdr_WrapModule();
-        ct.categorize("__Contents_Sdr");
-    #endif // SDR_EXPORTS
+        WRAP_MODULE(sdr)
+    #endif
     #ifdef PCP_EXPORTS
-        pcp_WrapModule();
-        ct.categorize("__Contents_Pcp");
-    #endif // PCP_EXPORTS
+        WRAP_MODULE(pcp)
+    #endif
     #ifdef USD_EXPORTS
-        usd_WrapModule();
-        ct.categorize("__Contents_Usd");
-    #endif // USD_EXPORTS
+        WRAP_MODULE(usd)
+    #endif
     #ifdef USDGEOM_EXPORTS
-        usdGeom_WrapModule();
-        ct.categorize("__Contents_UsdGeom");
-    #endif // USDGEOM_EXPORTS
+        WRAP_MODULE(usdGeom)
+    #endif
     #ifdef USDVOL_EXPORTS
-        usdVol_WrapModule();
-        ct.categorize("__Contents_UsdVol");
-    #endif // USDVOL_EXPORTS
+        WRAP_MODULE(usdVol)
+    #endif
     #ifdef USDLUX_EXPORTS
-        usdLux_WrapModule();
-        ct.categorize("__Contents_UsdLux");
-    #endif // USDLUX_EXPORTS
+        WRAP_MODULE(usdLux)
+    #endif
     #ifdef USDSHADE_EXPORTS
-        usdShade_WrapModule();
-        ct.categorize("__Contents_UsdShade");
-    #endif // USDSHADE_EXPORTS
+        WRAP_MODULE(usdShade)
+    #endif
     #ifdef USDRENDER_EXPORTS
-        usdRender_WrapModule();
-        ct.categorize("__Contents_UsdRender");
-    #endif // USDRENDER_EXPORTS
+        WRAP_MODULE(usdRender)
+    #endif
     #ifdef USDHYDRA_EXPORTS
-        usdHydra_WrapModule();
-        ct.categorize("__Contents_UsdHydra");
-    #endif // USDHYDRA_EXPORTS
+        WRAP_MODULE(usdHydra)
+    #endif
     #ifdef USDRI_EXPORTS
-        usdRi_WrapModule();
-        ct.categorize("__Contents_UsdRi");
-    #endif // USDRI_EXPORTS
+        WRAP_MODULE(usdRi)
+    #endif
     #ifdef USDSKEL_EXPORTS
-        usdSkel_WrapModule();
-        ct.categorize("__Contents_UsdSkel");
-    #endif // USDSKEL_EXPORTS
+        WRAP_MODULE(usdSkel)
+    #endif
     #ifdef USDUI_EXPORTS
-        usdUI_WrapModule();
-        ct.categorize("__Contents_UsdUI");
-    #endif // USDUI_EXPORTS
+        WRAP_MODULE(usdUI)
+    #endif
     #ifdef USDUTILS_EXPORTS
-        usdUtils_WrapModule();
-        ct.categorize("__Contents_UsdUtils");
-    #endif // USDUTILS_EXPORTS
+        WRAP_MODULE(usdUtils)
+    #endif
     #ifdef GARCH_EXPORTS
-        garch_WrapModule();
-        ct.categorize("__Contents_Garch");
-    #endif // GARCH_EXPORTS
+        WRAP_MODULE(garch)
+    #endif
     #ifdef CAMERAUTIL_EXPORTS
-        cameraUtil_WrapModule();
-        ct.categorize("__Contents_CameraUtil");
-    #endif // CAMERAUTIL_EXPORTS
+        WRAP_MODULE(cameraUtil)
+    #endif
     #ifdef PXOSD_EXPORTS
-        pxOsd_WrapModule();
-        ct.categorize("__Contents_PxOsd");
-    #endif // PXOSD_EXPORTS
+        WRAP_MODULE(pxOsd)
+    #endif
     #ifdef GLF_EXPORTS
-        glf_WrapModule();
-        ct.categorize("__Contents_Glf");
-    #endif // GLF_EXPORTS
+        WRAP_MODULE(glf)
+    #endif
     #ifdef USDIMAGINGGL_EXPORTS
-        usdImagingGL_WrapModule();
-        ct.categorize("__Contents_UsdImagingGL");
-    #endif // USDIMAGINGGL_EXPORTS
+        WRAP_MODULE(usdImagingGL)
+    #endif
     #ifdef USDAPPUTILS_EXPORTS
-        usdAppUtils_WrapModule();
-        ct.categorize("__Contents_UsdAppUtils");
-    #endif // USDAPPUTILS_EXPORTS
+        WRAP_MODULE(usdAppUtils)
+    #endif
     #ifdef USDVIEWQ_EXPORTS
-        usdAppUtils_WrapModule();
-        ct.categorize("__Contents_Usdviewq");
-    #endif // USDVIEWQ_EXPORTS
+        WRAP_MODULE(usdviewq)
+    #endif
 }

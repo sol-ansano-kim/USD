@@ -519,8 +519,8 @@ def GenSubmodule(target, source, env):
     with open(tgt, "w") as f:
         f.write("import pxr._combined\n")
         f.write("lcls = locals()\n")
-        f.write("for k, v in pxr._combined.__Contents_{}{}.items():\n".format(mod_name[0].upper(), mod_name[1:]))
-        f.write("    if k in lcls:\n")
+        f.write("for k, v in pxr._combined._{}.__dict__.items():\n".format(mod_name))
+        f.write("    if k in [\"__module__\", \"__doc__\", \"__reduce__\", \"__init__\"]:\n")
         f.write("        continue\n")
         f.write("    lcls[k] = v\n")
         f.write("locals().pop(\"lcls\")\n")
