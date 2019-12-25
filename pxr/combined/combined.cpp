@@ -164,12 +164,12 @@ using namespace boost::python;
     #include "pxr/usd/lib/usdUtils/module.cpp"
 #endif // USDUTILS_EXPORTS
 
-#ifdef GRACH_EXPORTS
+#ifdef GARCH_EXPORTS
     #define MFB_PACKAGE_NAME garch
     #define MFB_ALT_PACKAGE_NAME garch
     #define MFB_PACKAGE_MODULE Garch
     #include "pxr/imaging/lib/garch/module.cpp"
-#endif // GRACH_EXPORTS
+#endif // GARCH_EXPORTS
 
 #ifdef CAMERAUTIL_EXPORTS
     #define MFB_PACKAGE_NAME cameraUtil
@@ -333,10 +333,10 @@ BOOST_PYTHON_MODULE(_combined)
         usdUtils_WrapModule();
         ct.categorize("UsdUtils");
     #endif // USDUTILS_EXPORTS
-    #ifdef GRACH_EXPORTS
+    #ifdef GARCH_EXPORTS
         garch_WrapModule();
         ct.categorize("Garch");
-    #endif // GRACH_EXPORTS
+    #endif // GARCH_EXPORTS
     #ifdef CAMERAUTIL_EXPORTS
         cameraUtil_WrapModule();
         ct.categorize("CameraUtil");

@@ -53,7 +53,7 @@ if not support_python:
 #  external libs
 ##############################################
 
-# TODO : external? 
+# TODO : external?
 tbb_static = excons.GetArgument("tbb-static", 1, int)
 exr_static = excons.GetArgument("openexr-static", 1, int)
 ocio_static = excons.GetArgument("ocio-static", 1, int)
@@ -369,6 +369,7 @@ dependencies += out_osd
 # --------------------------------------------
 
 flags = ""
+linkflags = ""
 defs = ["__TBB_NO_IMPLICIT_LINKAGE"]
 pydefs = ["BOOST_PYTHON_NO_PY_SIGNATURES"]
 
@@ -414,20 +415,13 @@ else:
 customs = [RequireBoost, RequireTBB]
 if support_python:
     customs += [RequireBoostPy, python.SoftRequire]
-if build_imaging:
-    customs += [lambda x: (RequireIlmImf(x, static=exr_static)),
-                lambda x: (RequireOsdCPU(x, static=osd_static)),
-                lambda x: (RequireOCIO(x, static=ocio_static)),
-                lambda x: (RequireOiio(x, static=oiio_static)),
-                gl.Require]
-    if sys.platform == "darwin":
-        flags += " -framework AppKit"
 
 prjs = []
 
 prjs_default = {"type": "sharedlib",
                 "defs": defs,
                 "cppflags": flags,
+                "linkflags": linkflags,
                 "incdirs": [out_incdir, boost_inc],
                 "libdirs": [out_libdir],
                 "rpath": out_libdir,
@@ -439,6 +433,7 @@ py_default = {"type": "dynamicmodule",
               "defs": defs + pydefs,
               "ext": python.ModuleExtension(),
               "cppflags": flags,
+              "linkflags": linkflags,
               "incdirs": [out_incdir, boost_inc],
               "libdirs": [out_libdir],
               "rpath": out_libdir,
@@ -477,7 +472,7 @@ def _filterModuleCpps(srcs):
 
     return new_srcs
 
-def _addPrj(name, group, srcs, libs=None, install=None):
+def _addPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None):
     alias = "usd-{}-{}".format(group, name)
     grpname = "usd-{}".format(group)
     if grpname not in groups:
@@ -496,6 +491,12 @@ def _addPrj(name, group, srcs, libs=None, install=None):
 
     if install:
         prj["install"] = install
+
+    if linkflags:
+        prj["linkflags"] += linkflags
+
+    if customs:
+        prj["custom"].extend(customs)
 
     prjs.append(prj)
 
@@ -526,7 +527,7 @@ def GenSubmodule(target, source, env):
         f.write("locals().pop(\"k\")\n")
         f.write("locals().pop(\"v\")\n")
 
-def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
+def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None, combinePys=False):
     if not srcs:
         return
 
@@ -564,6 +565,12 @@ def _addPyPrj(name, group, srcs, libs=None, install=None, combinePys=False):
 
         if install:
             prj["install"] = install
+
+        if linkflags:
+            prj["linkflags"] += linkflags
+
+        if customs:
+            prj["custom"].extend(customs)
 
         prjs.append(prj)
 
@@ -609,7 +616,7 @@ def _resolveEnvs(srcs, envs):
 
     return new_srcs
 
-def _buildLib(name, group, libs=None, buildPython=False, envs=None):
+def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=False, envs=None):
     if envs is None:
         envs = {}
 
@@ -675,7 +682,7 @@ def _buildLib(name, group, libs=None, buildPython=False, envs=None):
     _addInstall(defs.get("RESOURCE_FILES", []), dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)), install)
 
     if not buildPython:
-        _addPrj(name, group, cpps, libs=libs, install=install)
+        _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
     else:
         _addInstall(defs.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
         _addInstall(defs.get("PYTHON_PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
@@ -690,7 +697,7 @@ def _buildLib(name, group, libs=None, buildPython=False, envs=None):
             cpps = _filterModuleCpps(cpps)
             pycpps = _filterModuleCpps(pycpps)
 
-        _addPrj(name, group, cpps, libs=libs, install=install)
+        _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
         _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, combinePys=combine_pys)
 
 # --------------------------------------------
@@ -868,81 +875,97 @@ _buildLib("usdUtils",
           buildPython=support_python,
           envs=envs)
 
-# --------------------------------------------
-#  imaging
-# --------------------------------------------
+if build_imaging:
+    # --------------------------------------------
+    #  imaging
+    # --------------------------------------------
 
-_buildLib("garch",
-          "imaging",
-          libs=["tf", "gf"],
-          buildPython=support_python,
-          envs=envs)
+    # TODO
+    glew_libs = ["GLEW"]
 
-_buildLib("hf",
-          "imaging",
-          libs=["tf", "trace", "plug"],
-          buildPython=support_python,
-          envs=envs)
+    garch_linkflags = ""
+    garch_libs = ["tf", "gf"] + glew_libs
+    if sys.platform == "darwin":
+        garch_linkflags = " -framework AppKit"
+        garch_libs.append("objc")
 
-_buildLib("hio",
-          "imaging",
-          libs=["arch", "tf", "trace", "vt", "hf"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("garch",
+              "imaging",
+              libs=garch_libs,
+              linkflags=garch_linkflags,
+              customs=[gl.Require],
+              buildPython=support_python,
+              envs=envs)
 
-_buildLib("cameraUtil",
-          "imaging",
-          libs=["tf", "gf"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("hf",
+              "imaging",
+              libs=["tf", "trace", "plug"],
+              buildPython=support_python,
+              envs=envs)
 
-_buildLib("pxOsd",
-          "imaging",
-          libs=["tf", "gf", "vt"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("hio",
+              "imaging",
+              libs=["arch", "tf", "trace", "vt", "hf"],
+              buildPython=support_python,
+              envs=envs)
 
-glfenvs = envs.copy()
-if sys.platform != "win32" and sys.platform != "darwin":
-    glfenvs["optionalPublicClasses"] = "testGLContext"
+    _buildLib("cameraUtil",
+              "imaging",
+              libs=["tf", "gf"],
+              buildPython=support_python,
+              envs=envs)
 
-glfenvs["optionalCppFiles"] = "oiioImage.cpp"
+    _buildLib("pxOsd",
+              "imaging",
+              libs=["tf", "gf", "vt"],
+              customs=[lambda x: (RequireOsdCPU(x, static=osd_static))],
+              buildPython=support_python,
+              envs=envs)
 
-_buildLib("glf",
-          "imaging",
-          libs=["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
-          buildPython=support_python,
-          envs=glfenvs)
+    glfenvs = envs.copy()
+    if sys.platform != "win32" and sys.platform != "darwin":
+        glfenvs["optionalPublicClasses"] = "testGLContext"
 
-_buildLib("hgi",
-          "imaging",
-          libs=["tf", "gf"],
-          buildPython=support_python,
-          envs=envs)
+    glfenvs["optionalCppFiles"] = "oiioImage.cpp"
 
-_buildLib("hgiGL",
-          "imaging",
-          libs=["arch", "tf", "trace", "hgi"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("glf",
+              "imaging",
+              libs=glew_libs + ["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
+              buildPython=support_python,
+              customs=[lambda x: (RequireIlmImf(x, static=exr_static)),
+                       lambda x: (RequireOiio(x, static=oiio_static))],
+              envs=glfenvs)
 
-_buildLib("hd",
-          "imaging",
-          libs=["tf", "trace", "work", "plug", "vt", "sdf", "hf", "cameraUtil", "pxOsd"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("hgi",
+              "imaging",
+              libs=["tf", "gf"],
+              buildPython=support_python,
+              envs=envs)
 
-_buildLib("hdSt",
-          "imaging",
-          libs=["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("hgiGL",
+              "imaging",
+              libs=glew_libs + ["arch", "tf", "trace", "hgi"],
+              buildPython=support_python,
+              envs=envs)
 
-_buildLib("hdx",
-          "imaging",
-          libs=["tf", "gf", "plug", "work", "vt", "sdf","garch", "cameraUtil", "glf", "pxOsd", "hd", "hdSt", "hgi"],
-          buildPython=support_python,
-          envs=envs)
+    _buildLib("hd",
+              "imaging",
+              libs=["tf", "trace", "work", "plug", "vt", "sdf", "hf", "cameraUtil", "pxOsd"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("hdSt",
+              "imaging",
+              libs=glew_libs + ["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("hdx",
+              "imaging",
+              libs=glew_libs + ["tf", "gf", "plug", "work", "vt", "sdf","garch", "cameraUtil", "glf", "pxOsd", "hd", "hdSt", "hgi"],
+              buildPython=support_python,
+              customs=[lambda x: (RequireOCIO(x, static=ocio_static))],
+              envs=envs)
 
 # --------------------------------------------
 #  combined module
