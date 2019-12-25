@@ -542,7 +542,7 @@ def GenUIFile(target, source, env):
         f.write("import Qt\n")
         f.write("import os\n")
         f.write("def Ui_{}(parent=None):\n".format(ui_name))
-        f.write("  ui_file = __file__.replace(\".py\", \".ui\")\n")
+        f.write("  ui_file = os.path.splitext(__file__)[0] + \".ui\"\n")
         f.write("  return Qt.QtCompat.loadUi(ui_file, parent)\n")
 
 def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None, uiFiles=None, combinePys=False):
