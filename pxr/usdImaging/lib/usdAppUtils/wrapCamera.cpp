@@ -34,7 +34,7 @@ PXR_NAMESPACE_USING_DIRECTIVE
 
 
 void
-wrapCamera()
+wrapUsdAppUtilsCamera()
 {
     def(
         "GetCameraAtPath",

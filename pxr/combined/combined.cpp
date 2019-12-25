@@ -192,6 +192,27 @@ using namespace boost::python;
     #include "pxr/imaging/lib/glf/module.cpp"
 #endif // GLF_EXPORTS
 
+#ifdef USDIMAGINGGL_EXPORTS
+    #define MFB_PACKAGE_NAME usdImagingGL
+    #define MFB_ALT_PACKAGE_NAME usdImagingGL
+    #define MFB_PACKAGE_MODULE UsdImagingGL
+    #include "pxr/usdImaging/lib/usdImagingGL/module.cpp"
+#endif // USDIMAGINGGL_EXPORTS
+
+#ifdef USDAPPUTILS_EXPORTS
+    #define MFB_PACKAGE_NAME usdAppUtils
+    #define MFB_ALT_PACKAGE_NAME usdAppUtils
+    #define MFB_PACKAGE_MODULE UsdAppUtils
+    #include "pxr/usdImaging/lib/usdAppUtils/module.cpp"
+#endif // USDAPPUTILS_EXPORTS
+
+#ifdef USDVIEWQ_EXPORTS
+    #define MFB_PACKAGE_NAME usdviewq
+    #define MFB_ALT_PACKAGE_NAME usdviewq
+    #define MFB_PACKAGE_MODULE Usdviewq
+    #include "pxr/usdImaging/lib/usdviewq/module.cpp"
+#endif // USDVIEWQ_EXPORTS
+
 
 class Categorizer
 {
@@ -361,4 +382,16 @@ BOOST_PYTHON_MODULE(_combined)
         glf_WrapModule();
         ct.categorize("__Contents_Glf");
     #endif // GLF_EXPORTS
+    #ifdef USDIMAGINGGL_EXPORTS
+        usdImagingGL_WrapModule();
+        ct.categorize("__Contents_UsdImagingGL");
+    #endif // USDIMAGINGGL_EXPORTS
+    #ifdef USDAPPUTILS_EXPORTS
+        usdAppUtils_WrapModule();
+        ct.categorize("__Contents_UsdAppUtils");
+    #endif // USDAPPUTILS_EXPORTS
+    #ifdef USDVIEWQ_EXPORTS
+        usdAppUtils_WrapModule();
+        ct.categorize("__Contents_Usdviewq");
+    #endif // USDVIEWQ_EXPORTS
 }

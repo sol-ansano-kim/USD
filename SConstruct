@@ -239,8 +239,9 @@ if build_imaging:
         ext_opts["osd-static"] = osd_static
         excons.PrintOnce("USD: Build osd from sources ...")
         excons.cmake.AddConfigureDependencies("osd", out_tbb)
-        excons.Call("OpenSubdiv", targets=["osd"], overrides=ext_opts, imp=["OsdCPUPath", "OsdGPUPath", "RequireOsdCPU"])
+        excons.Call("OpenSubdiv", targets=["osd"], overrides=ext_opts, imp=["OsdCPUPath", "OsdGPUPath", "RequireOsdCPU", "RequireOsdGPU"])
         out_osd.append(OsdCPUPath(True))
+        out_osd.append(OsdGPUPath(True))
         # TODO : support GPU?
         # TODO : RequireOsdCPU has to add linking of tbb if using static lib
     else:
@@ -445,7 +446,6 @@ bin_default = prjs_default.copy()
 bin_default["type"] = "program"
 bin_default["custom"] = [RequireBoost, python.Require]
 
-
 def _fpath(directory, filePaths):
     return map(lambda x: os.path.join(directory, x), filePaths)
 
@@ -493,10 +493,10 @@ def _addPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=
         prj["install"] = install
 
     if linkflags:
-        prj["linkflags"] += linkflags
+        prj["linkflags"] = linkflags + prj["linkflags"]
 
     if customs:
-        prj["custom"].extend(customs)
+        prj["custom"] = prj["custom"] + customs
 
     prjs.append(prj)
 
@@ -504,6 +504,7 @@ combined_srcs = {}
 combined_install = {}
 combined_defs = []
 combined_libs = []
+combined_deps = []
 combined_modules = []
 combined_fake_pys = []
 
@@ -527,7 +528,24 @@ def GenSubmodule(target, source, env):
         f.write("locals().pop(\"k\")\n")
         f.write("locals().pop(\"v\")\n")
 
-def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None, combinePys=False):
+def GenUIFile(target, source, env):
+    tgt = target[0].get_abspath()
+    src = source[0].get_abspath()
+    dgt = os.path.dirname(tgt)
+    if not os.path.isdir(dgt):
+        os.makedirs(dgt)
+
+    ui_name = os.path.basename(src).replace("UI.ui", "")
+    ui_name = "{}{}".format(ui_name[0].upper(), ui_name[1:])
+
+    with open(tgt, "w") as f:
+        f.write("import Qt\n")
+        f.write("import os\n")
+        f.write("def Ui_{}(parent=None):\n".format(ui_name))
+        f.write("  ui_file = __file__.replace(\".py\", \".ui\")\n")
+        f.write("  return Qt.QtCompat.loadUi(ui_file, parent)\n")
+
+def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None, uiFiles=None, combinePys=False):
     if not srcs:
         return
 
@@ -544,6 +562,8 @@ def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, instal
         combined_defs.extend(_addDefs(name, []))
         if libs:
             combined_libs.extend(libs)
+        if uiFiles:
+            combined_deps.extend(uiFiles)
 
     else:
         alias = "usd-py-{}-{}".format(group, name)
@@ -567,10 +587,13 @@ def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, instal
             prj["install"] = install
 
         if linkflags:
-            prj["linkflags"] += linkflags
+            prj["linkflags"] = prj["linkflags"] + linkflags
 
         if customs:
-            prj["custom"].extend(customs)
+            prj["custom"] = prj["custom"] + customs
+
+        if uiFiles:
+            prj["deps"] = prj["deps"] + uiFiles
 
         prjs.append(prj)
 
@@ -674,6 +697,7 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
 
     install = {}
     pyinstall = {}
+    ui_files = []
 
     _addInstall(defs.get("PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
     _addInstall(defs.get("PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
@@ -684,11 +708,17 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
     if not buildPython:
         _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
     else:
+        py_dest = os.path.join(out_libdir, "python/pxr/{}{}".format(name[0].upper(), name[1:]))
         _addInstall(defs.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
         _addInstall(defs.get("PYTHON_PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
         _addInstall(defs.get("PYTHON_PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
         _addInstall(defs.get("PYTHON_PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
-        _addInstall(defs.get("PYMODULE_FILES", []), dirname, os.path.join(out_libdir, "python/pxr/{}{}".format(name[0].upper(), name[1:])), pyinstall)
+        _addInstall(defs.get("PYMODULE_FILES", []), dirname, py_dest, pyinstall)
+        _addInstall(defs.get("PYSIDE_UI_FILES", []), dirname, py_dest, pyinstall)
+
+        for ui in defs.get("PYSIDE_UI_FILES", []):
+            ui_py = os.path.splitext(ui)[0] + ".py"
+            ui_files += env.Command(os.path.join(py_dest, ui_py), os.path.join(dirname, ui), GenUIFile)
 
         cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PYTHON_PUBLIC_CLASSES", []) + defs.get("PYTHON_PRIVATE_CLASSES", []))
         cpps += map(lambda x: os.path.join(dirname, x), defs.get("PYTHON_CPPFILES", []))
@@ -698,7 +728,7 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
             pycpps = _filterModuleCpps(pycpps)
 
         _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
-        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, combinePys=combine_pys)
+        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, uiFiles=ui_files, combinePys=combine_pys)
 
 # --------------------------------------------
 #  envs
@@ -918,7 +948,8 @@ if build_imaging:
     _buildLib("pxOsd",
               "imaging",
               libs=["tf", "gf", "vt"],
-              customs=[lambda x: (RequireOsdCPU(x, static=osd_static))],
+              customs=[lambda x: (RequireOsdCPU(x, static=osd_static)),
+                       lambda x: (RequireOsdGPU(x, static=osd_static))],
               buildPython=support_python,
               envs=envs)
 
@@ -958,6 +989,8 @@ if build_imaging:
               "imaging",
               libs=glew_libs + ["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
               buildPython=support_python,
+              customs=[lambda x: (RequireOsdCPU(x, static=osd_static)),
+                       lambda x: (RequireOsdGPU(x, static=osd_static))],
               envs=envs)
 
     _buildLib("hdx",
@@ -966,6 +999,48 @@ if build_imaging:
               buildPython=support_python,
               customs=[lambda x: (RequireOCIO(x, static=ocio_static))],
               envs=envs)
+
+    # --------------------------------------------
+    #  usd imaging
+    # --------------------------------------------
+
+    _buildLib("usdImaging",
+              "usdImaging",
+              libs=["tf", "gf", "trace", "work", "plug", "vt", "ar", "sdf", "usd", "usdGeom", "usdLux", "usdShade", "usdVol", "hd", "pxOsd"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("usdImagingGL",
+              "usdImaging",
+              libs=glew_libs + ["tf", "gf", "trace", "work", "plug", "vt", "ar", "sdf", "sdr", "usd", "usdGeom", "usdHydra", "usdShade", "garch", "glf", "hio", "hd", "hdx", "pxOsd", "usdImaging"],
+              buildPython=support_python,
+              customs=[gl.Require],
+              envs=envs)
+
+    _buildLib("usdSkelImaging",
+              "usdImaging",
+              libs=["hd", "hio", "usdImaging", "usdSkel"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("usdVolImaging",
+              "usdImaging",
+              libs=["usdImaging"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("usdAppUtils",
+              "usdImaging",
+              libs=["tf", "gf", "sdf", "usd", "usdGeom", "garch", "glf", "usdImagingGL"],
+              buildPython=support_python,
+              envs=envs)
+
+    _buildLib("usdviewq",
+              "usdImaging",
+              libs=["tf", "usd", "usdGeom"],
+              buildPython=support_python,
+              envs=envs)
+
 
 # --------------------------------------------
 #  combined module
@@ -992,7 +1067,7 @@ if support_python and combine_pys:
     prj["incdirs"] = prj["incdirs"] + [os.path.abspath(".")]
     prj["libs"] = prj["libs"] + combined_libs
     prj["install"] = combined_install
-    prj["deps"] = prj["deps"] + combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy)
+    prj["deps"] = prj["deps"] + combined_fake_pys + env.Command(os.path.join(out_libdir, "python/pxr/__init__.py"), "", GenPy) + combined_deps
     prjs.append(prj)
     groups["usd-py-combined"] = ["_combined"]
 
@@ -1029,7 +1104,11 @@ def GenBin(target, source, env):
                 d.write(line.replace('/pxrpythonsubst', "/usr/bin/env python"))
     os.chmod(tgt, 0775)
 
-for py in excons.glob("pxr/usd/bin/*/*.py"):
+py_bins = excons.glob("pxr/usd/bin/*/*.py")
+if build_imaging:
+    py_bins += excons.glob("pxr/usdImaging/bin/*/*.py")
+
+for py in py_bins:
     name = os.path.splitext(os.path.basename(py))[0]
     tg = env.Command(os.path.join(out_basedir, "bin", name), py, GenBin)
     groups["usd-bin"].append(tg[0])
@@ -1043,6 +1122,8 @@ excons.AddHelpOptions(USD="""USD OPTIONS
   usd-view=0|1          : include usd view building [1]
   usd-view=0|1          : include usd imaging building [1]
   usd-python=0|1        : include usd python building [1]""")
+
+# TODO : plugins
 
 targets = excons.DeclareTargets(env, prjs)
 
