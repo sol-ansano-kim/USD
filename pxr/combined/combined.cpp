@@ -1,5 +1,7 @@
 #include <boost/python.hpp>
 #include <set>
+#include "pxr/base/tf/pyWrapContext.h"
+
 using namespace boost::python;
 
 
@@ -216,8 +218,10 @@ using namespace boost::python;
 
 #define WRAP_MODULE(x) class BOOST_PP_CAT(_, x) {}; \
 { \
+    Tf_PyWrapContextManager::GetInstance().PushContext(BOOST_PP_STRINGIZE(x)); \
     boost::python::scope BOOST_PP_CAT(_scope_, x) = boost::python::class_<BOOST_PP_CAT(_, x)>(BOOST_PP_STRINGIZE(BOOST_PP_CAT(_, x)), boost::python::no_init); \
     BOOST_PP_CAT(x, _WrapModule) (); \
+    Tf_PyWrapContextManager::GetInstance().PopContext(); \
 };
 
 
@@ -225,93 +229,93 @@ BOOST_PYTHON_MODULE(_combined)
 {
     boost::python::scope module;
     #ifdef TF_EXPORTS
-        WRAP_MODULE(tf)
+        WRAP_MODULE(Tf)
     #endif
     #ifdef GF_EXPORTS
-        WRAP_MODULE(gf)
+        WRAP_MODULE(Gf)
     #endif
     #ifdef TRACE_EXPORTS
-        WRAP_MODULE(trace)
+        WRAP_MODULE(Trace)
     #endif
     #ifdef WORK_EXPORTS
-        WRAP_MODULE(work)
+        WRAP_MODULE(Work)
     #endif
     #ifdef PLUG_EXPORTS
-        WRAP_MODULE(plug)
+        WRAP_MODULE(Plug)
     #endif
     #ifdef VT_EXPORTS
-        WRAP_MODULE(vt)
+        WRAP_MODULE(Vt)
     #endif
     #ifdef AR_EXPORTS
-        WRAP_MODULE(ar)
+        WRAP_MODULE(Ar)
     #endif
     #ifdef KIND_EXPORTS
-        WRAP_MODULE(kind)
+        WRAP_MODULE(Kind)
     #endif
     #ifdef SDF_EXPORTS
-        WRAP_MODULE(sdf)
+        WRAP_MODULE(Sdf)
     #endif
     #ifdef NDR_EXPORTS
-        WRAP_MODULE(ndr)
+        WRAP_MODULE(Ndr)
     #endif
     #ifdef SDR_EXPORTS
-        WRAP_MODULE(sdr)
+        WRAP_MODULE(Sdr)
     #endif
     #ifdef PCP_EXPORTS
-        WRAP_MODULE(pcp)
+        WRAP_MODULE(Pcp)
     #endif
     #ifdef USD_EXPORTS
-        WRAP_MODULE(usd)
+        WRAP_MODULE(Usd)
     #endif
     #ifdef USDGEOM_EXPORTS
-        WRAP_MODULE(usdGeom)
+        WRAP_MODULE(UsdGeom)
     #endif
     #ifdef USDVOL_EXPORTS
-        WRAP_MODULE(usdVol)
+        WRAP_MODULE(UsdVol)
     #endif
     #ifdef USDLUX_EXPORTS
-        WRAP_MODULE(usdLux)
+        WRAP_MODULE(UsdLux)
     #endif
     #ifdef USDSHADE_EXPORTS
-        WRAP_MODULE(usdShade)
+        WRAP_MODULE(UsdShade)
     #endif
     #ifdef USDRENDER_EXPORTS
-        WRAP_MODULE(usdRender)
+        WRAP_MODULE(UsdRender)
     #endif
     #ifdef USDHYDRA_EXPORTS
-        WRAP_MODULE(usdHydra)
+        WRAP_MODULE(UsdHydra)
     #endif
     #ifdef USDRI_EXPORTS
-        WRAP_MODULE(usdRi)
+        WRAP_MODULE(UsdRi)
     #endif
     #ifdef USDSKEL_EXPORTS
-        WRAP_MODULE(usdSkel)
+        WRAP_MODULE(UsdSkel)
     #endif
     #ifdef USDUI_EXPORTS
-        WRAP_MODULE(usdUI)
+        WRAP_MODULE(UsdUI)
     #endif
     #ifdef USDUTILS_EXPORTS
-        WRAP_MODULE(usdUtils)
+        WRAP_MODULE(UsdUtils)
     #endif
     #ifdef GARCH_EXPORTS
-        WRAP_MODULE(garch)
+        WRAP_MODULE(Garch)
     #endif
     #ifdef CAMERAUTIL_EXPORTS
-        WRAP_MODULE(cameraUtil)
+        WRAP_MODULE(CameraUtil)
     #endif
     #ifdef PXOSD_EXPORTS
-        WRAP_MODULE(pxOsd)
+        WRAP_MODULE(PxOsd)
     #endif
     #ifdef GLF_EXPORTS
-        WRAP_MODULE(glf)
+        WRAP_MODULE(Glf)
     #endif
     #ifdef USDIMAGINGGL_EXPORTS
-        WRAP_MODULE(usdImagingGL)
+        WRAP_MODULE(UsdImagingGL)
     #endif
     #ifdef USDAPPUTILS_EXPORTS
-        WRAP_MODULE(usdAppUtils)
+        WRAP_MODULE(UsdAppUtils)
     #endif
     #ifdef USDVIEWQ_EXPORTS
-        WRAP_MODULE(usdviewq)
+        WRAP_MODULE(Usdviewq)
     #endif
 }

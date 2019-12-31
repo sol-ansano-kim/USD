@@ -124,7 +124,7 @@ void BOOST_PP_CAT(initlib, MFB_PACKAGE_NAME)() {
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/python/module.hpp>
 
-#define TF_WRAP_MODULE static void BOOST_PP_CAT(MFB_PACKAGE_NAME, _WrapModule)()
+#define TF_WRAP_MODULE static void BOOST_PP_CAT(MFB_PACKAGE_MODULE, _WrapModule)()
 
 #endif // USD_PY_AS_ONE_MODULE
 // Declares and calls the class wrapper for x

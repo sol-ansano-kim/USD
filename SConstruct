@@ -515,6 +515,7 @@ def GenSubmodule(target, source, env):
         os.makedirs(dgt)
 
     mod_name = os.path.splitext(os.path.basename(tgt))[0][1:]
+    mod_name = "{}{}".format(mod_name[0].upper(), mod_name[1:])
 
     with open(tgt, "w") as f:
         f.write("import pxr._combined\n")
