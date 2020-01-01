@@ -455,11 +455,6 @@ def _addDefs(name, currentDefs):
 def _addPyDefs(name, currentDefs):
     return ["MFB_PACKAGE_NAME={}".format(name), "MFB_ALT_PACKAGE_NAME={}".format(name), "MFB_PACKAGE_MODULE={}{}".format(name[0].upper(), name[1:])] + _addDefs(name, currentDefs)
 
-# TODO
-# PXR_PLUGINPATH_NAME
-# PXR_BUILD_LOCATION
-# PXR_PLUGIN_BUILD_LOCATION
-
 groups = {}
 
 def _filterModuleCpps(srcs):
@@ -472,7 +467,7 @@ def _filterModuleCpps(srcs):
 
     return new_srcs
 
-def _addPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None):
+def _addPrj(name, group, srcs, defs=None, libs=None, linkflags=None, customs=None, install=None, deps=None):
     alias = "usd-{}-{}".format(group, name)
     grpname = "usd-{}".format(group)
     if grpname not in groups:
@@ -483,6 +478,8 @@ def _addPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=
     prj["name"] = name
     prj["alias"] = alias
     prj["defs"] = _addDefs(name, prj["defs"])
+    if defs:
+        prj["defs"] = prj["defs"] + defs
 
     prj["srcs"] = srcs
 
@@ -497,6 +494,9 @@ def _addPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=
 
     if customs:
         prj["custom"] = prj["custom"] + customs
+
+    if deps:
+        prj["deps"] = prj["deps"] + deps
 
     prjs.append(prj)
 
@@ -578,6 +578,7 @@ def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, instal
         prj["name"] = "_" + name
         prj["alias"] = alias
         prj["defs"] = _addPyDefs(name, prj["defs"])
+
         prj["prefix"] = pydir
         prj["srcs"] = srcs
 
@@ -621,6 +622,50 @@ def _addInstall(sources, dirname, prefix, result, suffix=None):
 
         result[key].append(os.path.join(dirname, r))
 
+
+_plug_lib_ext = ".so"
+if sys.platform == "darwin":
+    _plug_lib_ext = "dylib"
+elif sys.platform == "win32":
+    _plug_lib_ext = "dll"
+
+def _genJson(name, sources, dirname, prefix):
+    def GenJson(target, source, env):
+        src = source[0].get_abspath()
+        tgt = target[0].get_abspath()
+
+        defs = {"PLUG_INFO_ROOT": "..",
+                "PLUG_INFO_RESOURCE_PATH": "resources",
+                "PLUG_INFO_LIBRARY_PATH": "../../lib{}.{}".format(name, _plug_lib_ext)}
+
+        if not os.path.isdir(os.path.dirname(tgt)):
+            os.makedirs(os.path.dirname(tgt))
+
+        with open(src, "r") as f:
+            l = f.read()
+            for k, v in defs.items():
+                l = l.replace("@{}@".format(k), v)
+
+            with open(tgt, "w") as wf:
+                wf.write(l)
+
+    results = []
+    for r in sources:
+        pdirs = []
+        pre = None
+        if ":" in r:
+            r, pp = r.split(":")
+            pdirs.append(os.path.dirname(pp))
+
+        if os.path.basename(r) != r:
+            pdirs.insert(0, os.path.dirname(r))
+
+        dp = os.path.join(prefix, *pdirs)
+
+        results += env.Command(os.path.join(dp, r), os.path.join(dirname, r), GenJson)
+
+    return results
+
 def _resolveEnvs(srcs, envs):
     reenv = re.compile("\$\{([^}{$]+)\}")
     if not envs:
@@ -640,7 +685,7 @@ def _resolveEnvs(srcs, envs):
 
     return new_srcs
 
-def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=False, envs=None):
+def _buildLib(name, group, defs=None, libs=None, linkflags=None, customs=None, buildPython=False, envs=None):
     if envs is None:
         envs = {}
 
@@ -654,7 +699,7 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
     re_lib_st = re.compile("pxr_library[(]{}".format(name))
     re_lib_end = re.compile("[)]")
 
-    defs = {}
+    parsed = {}
     cur = None
 
     in_def = False
@@ -682,7 +727,7 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
                 break
         if ar:
             cur = []
-            defs[ar] = cur
+            parsed[ar] = cur
             continue
 
         if cur is None or not l:
@@ -690,45 +735,55 @@ def _buildLib(name, group, libs=None, linkflags=None, customs=None, buildPython=
 
         cur.append(l)
 
-    for k in defs.keys():
-        defs[k] = _resolveEnvs(defs[k], envs)
+    for k in parsed.keys():
+        parsed[k] = _resolveEnvs(parsed[k], envs)
 
-    cpps = map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PUBLIC_CLASSES", []) + defs.get("PRIVATE_CLASSES", []))
-    cpps += map(lambda x: os.path.join(dirname, x), defs.get("CPPFILES", []))
+    cpps = map(lambda x: os.path.join(dirname, x + ".cpp"), parsed.get("PUBLIC_CLASSES", []) + parsed.get("PRIVATE_CLASSES", []))
+    cpps += map(lambda x: os.path.join(dirname, x), parsed.get("CPPFILES", []))
 
     install = {}
     pyinstall = {}
     ui_files = []
 
-    _addInstall(defs.get("PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
-    _addInstall(defs.get("PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
-    _addInstall(defs.get("PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
-    _addInstall(defs.get("PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
-    _addInstall(defs.get("RESOURCE_FILES", []), dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)), install)
+    _addInstall(parsed.get("PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+    _addInstall(parsed.get("PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+    _addInstall(parsed.get("PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+    _addInstall(parsed.get("PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+
+    resources = []
+    jsons = []
+    for r in parsed.get("RESOURCE_FILES", []):
+        if os.path.splitext(r)[-1].lower() == ".json":
+            jsons.append(r)
+        else:
+            resources.append(r)
+
+    _addInstall(resources, dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)), install)
+    deps = _genJson(name, jsons, dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)))
 
     if not buildPython:
-        _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
+        _addPrj(name, group, cpps, defs=defs, libs=libs, linkflags=linkflags, customs=customs, install=install, deps=deps)
     else:
         py_dest = os.path.join(out_libdir, "python/pxr/{}{}".format(name[0].upper(), name[1:]))
-        _addInstall(defs.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
-        _addInstall(defs.get("PYTHON_PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
-        _addInstall(defs.get("PYTHON_PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
-        _addInstall(defs.get("PYTHON_PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
-        _addInstall(defs.get("PYMODULE_FILES", []), dirname, py_dest, pyinstall)
-        _addInstall(defs.get("PYSIDE_UI_FILES", []), dirname, py_dest, pyinstall)
+        _addInstall(parsed.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+        _addInstall(parsed.get("PYTHON_PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
+        _addInstall(parsed.get("PYTHON_PUBLIC_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+        _addInstall(parsed.get("PYTHON_PRIVATE_CLASSES", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install, suffix=".h")
+        _addInstall(parsed.get("PYMODULE_FILES", []), dirname, py_dest, pyinstall)
+        _addInstall(parsed.get("PYSIDE_UI_FILES", []), dirname, py_dest, pyinstall)
 
-        for ui in defs.get("PYSIDE_UI_FILES", []):
+        for ui in parsed.get("PYSIDE_UI_FILES", []):
             ui_py = os.path.splitext(ui)[0] + ".py"
             ui_files += env.Command(os.path.join(py_dest, ui_py), os.path.join(dirname, ui), GenUIFile)
 
-        cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), defs.get("PYTHON_PUBLIC_CLASSES", []) + defs.get("PYTHON_PRIVATE_CLASSES", []))
-        cpps += map(lambda x: os.path.join(dirname, x), defs.get("PYTHON_CPPFILES", []))
-        pycpps = map(lambda x: os.path.join(dirname, x), defs.get("PYMODULE_CPPFILES", []))
+        cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), parsed.get("PYTHON_PUBLIC_CLASSES", []) + parsed.get("PYTHON_PRIVATE_CLASSES", []))
+        cpps += map(lambda x: os.path.join(dirname, x), parsed.get("PYTHON_CPPFILES", []))
+        pycpps = map(lambda x: os.path.join(dirname, x), parsed.get("PYMODULE_CPPFILES", []))
         if combine_pys:
             cpps = _filterModuleCpps(cpps)
             pycpps = _filterModuleCpps(pycpps)
 
-        _addPrj(name, group, cpps, libs=libs, linkflags=linkflags, customs=customs, install=install)
+        _addPrj(name, group, cpps, defs=defs, libs=libs, linkflags=linkflags, customs=customs, install=install, deps=deps)
         _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, uiFiles=ui_files, combinePys=combine_pys)
 
 # --------------------------------------------
@@ -790,6 +845,7 @@ _buildLib("work",
 
 _buildLib("plug",
           "base",
+          defs=["PXR_BUILD_LOCATION=usd", "PXR_PLUGIN_BUILD_LOCATION=../plugin/usd"],
           libs=["arch", "tf", "trace", "js", "work"],
           buildPython=support_python,
           envs=envs)
@@ -959,6 +1015,7 @@ if build_imaging:
         glfenvs["optionalPublicClasses"] = "testGLContext"
 
     glfenvs["optionalCppFiles"] = "oiioImage.cpp"
+    glfenvs["plugInfo"] = "plugInfo.json"
 
     _buildLib("glf",
               "imaging",
