@@ -461,7 +461,7 @@ class HUD():
             self.y = 0
             self.w = w
             self.h = h
-            pixelRatio = QtWidgets.QApplication.instance().devicePixelRatio()
+            pixelRatio = (QtWidgets.QApplication.instance().devicePixelRatio() if hasattr(QtWidgets.QApplication, "devicePixelRatio") else 1)
             imageW = w * pixelRatio
             imageH = h * pixelRatio
             self.qimage = QtGui.QImage(imageW, imageH, QtGui.QImage.Format_ARGB32)
@@ -469,7 +469,7 @@ class HUD():
             self.painter = QtGui.QPainter()
 
     def __init__(self):
-        self._pixelRatio = QtWidgets.QApplication.instance().devicePixelRatio()
+        self._pixelRatio = (QtWidgets.QApplication.instance().devicePixelRatio() if hasattr(QtWidgets.QApplication, "devicePixelRatio") else 1)
         self._HUDLineSpacing = 15
         self._HUDFont = QtGui.QFont("Menv Mono Numeric", 9*self._pixelRatio)
         self._groups = {}
@@ -1433,7 +1433,7 @@ class StageView(QtOpenGL.QGLWidget):
         return windowPolicy
     
     def computeWindowSize(self):
-         size = self.size() * QtWidgets.QApplication.instance().devicePixelRatio()
+         size = self.size() * (QtWidgets.QApplication.instance().devicePixelRatio() if hasattr(QtWidgets.QApplication, "devicePixelRatio") else 1)
          return (int(size.width()), int(size.height()))
 
     def computeWindowViewport(self):

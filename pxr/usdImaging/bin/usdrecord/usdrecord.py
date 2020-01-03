@@ -39,12 +39,8 @@ def _Err(msg):
     sys.stderr.write(msg + '\n')
 
 def _SetupOpenGLContext(width=100, height=100):
-    try:
-        from PySide2 import QtOpenGL
-        from PySide2.QtWidgets import QApplication
-    except ImportError:
-        from PySide import QtOpenGL
-        from PySide.QtGui import QApplication
+    from Qt import QtOpenGL
+    from Qt.QtWidgets import QApplication
 
     application = QApplication(sys.argv)
 

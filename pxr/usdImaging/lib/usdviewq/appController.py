@@ -79,6 +79,14 @@ from pythonInterpreter import Myconsole
 
 SETTINGS_VERSION = "1"
 
+section_resize_func = None
+if hasattr(QtWidgets.QHeaderView, "setSectionResizeMode"):
+    section_resize_func = lambda x, y, z: x.setSectionResizeMode(y, z)
+elif hasattr(QtWidgets.QHeaderView, "setResizeMode"):
+    section_resize_func = lambda x, y, z: x.setResizeMode(y, z)
+else:
+    section_resize_func = lambda x, y, z: x
+
 class HUDEntries(ConstantGroup):
     # Upper HUD entries (declared in variables for abstraction)
     PRIM = "Prims"
@@ -662,23 +670,23 @@ class AppController(QtCore.QObject):
 
             # Arc path is the most likely to need stretch.
             twh = self._ui.compositionTreeWidget.header()
-            twh.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-            twh.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-            twh.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
-            twh.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(twh, 0, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(twh, 1, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(twh, 2, QtWidgets.QHeaderView.Stretch)
+            section_resize_func(twh, 3, QtWidgets.QHeaderView.ResizeToContents)
 
             # Set the prim view header to have a fixed size type and vis columns
             nvh = self._ui.primView.header()
-            nvh.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-            nvh.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-            nvh.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(nvh, 0, QtWidgets.QHeaderView.Stretch)
+            section_resize_func(nvh, 1, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(nvh, 2, QtWidgets.QHeaderView.ResizeToContents)
             nvh.resizeSection(3, 116)
-            nvh.setSectionResizeMode(3, QtWidgets.QHeaderView.Fixed)
+            section_resize_func(nvh, 3, QtWidgets.QHeaderView.Fixed)
 
             pvh = self._ui.propertyView.header()
-            pvh.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-            pvh.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-            pvh.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+            section_resize_func(pvh, 0, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(pvh, 1, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(pvh, 2, QtWidgets.QHeaderView.Stretch)
 
             # XXX:
             # To avoid QTBUG-12850 (https://bugreports.qt.io/browse/QTBUG-12850),
@@ -3994,9 +4002,9 @@ class AppController(QtCore.QObject):
             specs = []
             tableWidget.setColumnCount(3)
             header = tableWidget.horizontalHeader()
-            header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-            header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
-            header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(header, 0, QtWidgets.QHeaderView.ResizeToContents)
+            section_resize_func(header, 1, QtWidgets.QHeaderView.Stretch)
+            section_resize_func(header, 2, QtWidgets.QHeaderView.ResizeToContents)
             tableWidget.horizontalHeaderItem(1).setText('Path')
 
             if path.IsPropertyPath():

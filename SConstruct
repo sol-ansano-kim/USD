@@ -36,6 +36,7 @@ def TODO():
 build_viewer = excons.GetArgument("usd-view", 1, int) != 0
 build_imaging = excons.GetArgument("usd-imaging", 1, int) != 0
 support_python = excons.GetArgument("usd-python", 1, int) != 0
+install_qt_py = excons.GetArgument("usd-install-qtpy", 1, int) != 0
 combine_pys = False
 
 if not build_imaging:
@@ -270,6 +271,18 @@ if build_imaging:
 #  generate header
 # --------------------------------------------
 
+
+def GeneratePlugInfo(target, source, env):
+    info = """{
+    "Includes": [
+        "*/resources/"
+    ]
+}"""
+    tgt = target[0].get_abspath()
+    with open(tgt, "w") as f:
+        f.write(info)
+
+
 def GenerateConfig(target, source, env):
     src = source[0].get_abspath()
     tgt = target[0].get_abspath()
@@ -323,7 +336,8 @@ def GenerateConfig(target, source, env):
         with open(tgt, "w") as wf:
             wf.write(l)
 
-config_files = env.Command(os.path.join(out_incdir, "pxr/pxr.h"), os.path.abspath("pxr/pxr.h.in"), GenerateConfig)
+gen_files = env.Command(os.path.join(out_incdir, "pxr/pxr.h"), os.path.abspath("pxr/pxr.h.in"), GenerateConfig)
+gen_files += env.Command(os.path.join(out_libdir, "usd/plugInfo.json"), "", GeneratePlugInfo)
 
 # --------------------------------------------
 #  functions to export
@@ -427,7 +441,7 @@ prjs_default = {"type": "sharedlib",
                 "libdirs": [out_libdir],
                 "rpath": out_libdir,
                 "libs": libs,
-                "deps": config_files,
+                "deps": gen_files,
                 "symvis": "default",
                 "custom": customs}
 py_default = {"type": "dynamicmodule",
@@ -439,7 +453,7 @@ py_default = {"type": "dynamicmodule",
               "libdirs": [out_libdir],
               "rpath": out_libdir,
               "libs": libs,
-              "deps": config_files,
+              "deps": gen_files,
               "symvis": "default",
               "custom": customs + [RequireBoostPy]}
 bin_default = prjs_default.copy()
@@ -772,9 +786,10 @@ def _buildLib(name, group, defs=None, libs=None, linkflags=None, customs=None, b
         _addInstall(parsed.get("PYMODULE_FILES", []), dirname, py_dest, pyinstall)
         _addInstall(parsed.get("PYSIDE_UI_FILES", []), dirname, py_dest, pyinstall)
 
-        for ui in parsed.get("PYSIDE_UI_FILES", []):
-            ui_py = os.path.splitext(ui)[0] + ".py"
-            ui_files += env.Command(os.path.join(py_dest, ui_py), os.path.join(dirname, ui), GenUIFile)
+        # loadUi cannot read these files with older version Qt
+        # for ui in parsed.get("PYSIDE_UI_FILES", []):
+        #     ui_py = os.path.splitext(ui)[0] + ".py"
+        #     ui_files += env.Command(os.path.join(py_dest, ui_py), os.path.join(dirname, ui), GenUIFile)
 
         cpps += map(lambda x: os.path.join(dirname, x + ".cpp"), parsed.get("PYTHON_PUBLIC_CLASSES", []) + parsed.get("PYTHON_PRIVATE_CLASSES", []))
         cpps += map(lambda x: os.path.join(dirname, x), parsed.get("PYTHON_CPPFILES", []))
@@ -963,6 +978,10 @@ _buildLib("usdUtils",
           envs=envs)
 
 if build_imaging:
+    if install_qt_py:
+        qt_py = env.Install(os.path.join(out_libdir, "python"), "qt_dot_py/Qt.py")
+        groups["usd-qt-py"] = qt_py
+
     # --------------------------------------------
     #  imaging
     # --------------------------------------------
@@ -1098,6 +1117,9 @@ if build_imaging:
               libs=["tf", "usd", "usdGeom"],
               buildPython=support_python,
               envs=envs)
+
+    # use pre compile ui
+    groups["usd-imaging-uis"] = env.Install(os.path.join(out_libdir, "python/pxr/Usdviewq"), excons.Glob("uiFiles/*.py"))
 
 
 # --------------------------------------------
