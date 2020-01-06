@@ -31,3 +31,6 @@
 [submodule "qt_dot_py"]
 	path = qt_dot_py
 	url = git://github.com/mottosso/Qt.py.git
+[submodule "mini-glew"]
+	path = mini-glew
+	url = git://github.com/sol-ansano-kim/mini-glew.git
