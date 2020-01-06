@@ -62,6 +62,7 @@ osd_static = excons.GetArgument("osd-static", 1, int)
 oiio_static = excons.GetArgument("oiio-static", 1, int)
 
 ext_opts = {}
+out_glew = []
 out_zlib = []
 out_lcms2 = []
 out_tiff = []
@@ -115,6 +116,20 @@ else:
 # ============================================
 
 if build_imaging:
+    # --------------------------------------------
+    #  zlib
+    # --------------------------------------------
+
+    rv = excons.ExternalLibRequire("glew")
+    if not rv["require"]:
+        excons.PrintOnce("USD: Build glew from sources ...")
+        ext_opts["glew-static"] = 1
+        excons.Call("mini-glew", targets=["glew"], imp=["GlewPath", "RequireGlew"], overrides=ext_opts)
+        out_glew.append(GlewPath())
+        out_glew.append("{}/GL/glew.h".format(out_incdir))
+    else:
+        TODO()
+
     # --------------------------------------------
     #  zlib
     # --------------------------------------------
@@ -368,6 +383,7 @@ RequireUsd = functools.partial(_require, "usd")
 # --------------------------------------------
 
 dependencies = []
+dependencies += out_glew
 dependencies += out_zlib
 dependencies += out_lcms2
 dependencies += out_tiff
@@ -987,10 +1003,8 @@ if build_imaging:
     # --------------------------------------------
 
     # TODO
-    glew_libs = ["GLEW"]
-
     garch_linkflags = ""
-    garch_libs = ["tf", "gf"] + glew_libs
+    garch_libs = ["tf", "gf"]
     if sys.platform == "darwin":
         garch_linkflags = " -framework AppKit"
         garch_libs.append("objc")
@@ -999,7 +1013,7 @@ if build_imaging:
               "imaging",
               libs=garch_libs,
               linkflags=garch_linkflags,
-              customs=[gl.Require],
+              customs=[gl.Require, RequireGlew],
               buildPython=support_python,
               envs=envs)
 
@@ -1038,7 +1052,7 @@ if build_imaging:
 
     _buildLib("glf",
               "imaging",
-              libs=glew_libs + ["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
+              libs=["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
               buildPython=support_python,
               customs=[lambda x: (RequireIlmImf(x, static=exr_static)),
                        lambda x: (RequireOiio(x, static=oiio_static))],
@@ -1052,8 +1066,9 @@ if build_imaging:
 
     _buildLib("hgiGL",
               "imaging",
-              libs=glew_libs + ["arch", "tf", "trace", "hgi"],
+              libs=["arch", "tf", "trace", "hgi"],
               buildPython=support_python,
+              customs=[RequireGlew],
               envs=envs)
 
     _buildLib("hd",
@@ -1064,17 +1079,19 @@ if build_imaging:
 
     _buildLib("hdSt",
               "imaging",
-              libs=glew_libs + ["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
+              libs=["tf", "trace", "sdr", "garch", "hio", "glf", "hd", "hgiGL"],
               buildPython=support_python,
               customs=[lambda x: (RequireOsdCPU(x, static=osd_static)),
-                       lambda x: (RequireOsdGPU(x, static=osd_static))],
+                       lambda x: (RequireOsdGPU(x, static=osd_static)),
+                       RequireGlew],
               envs=envs)
 
     _buildLib("hdx",
               "imaging",
-              libs=glew_libs + ["tf", "gf", "plug", "work", "vt", "sdf","garch", "cameraUtil", "glf", "pxOsd", "hd", "hdSt", "hgi"],
+              libs=["tf", "gf", "plug", "work", "vt", "sdf","garch", "cameraUtil", "glf", "pxOsd", "hd", "hdSt", "hgi"],
               buildPython=support_python,
-              customs=[lambda x: (RequireOCIO(x, static=ocio_static))],
+              customs=[lambda x: (RequireOCIO(x, static=ocio_static)),
+                       RequireGlew],
               envs=envs)
 
     # --------------------------------------------
@@ -1089,9 +1106,9 @@ if build_imaging:
 
     _buildLib("usdImagingGL",
               "usdImaging",
-              libs=glew_libs + ["tf", "gf", "trace", "work", "plug", "vt", "ar", "sdf", "sdr", "usd", "usdGeom", "usdHydra", "usdShade", "garch", "glf", "hio", "hd", "hdx", "pxOsd", "usdImaging"],
+              libs=["tf", "gf", "trace", "work", "plug", "vt", "ar", "sdf", "sdr", "usd", "usdGeom", "usdHydra", "usdShade", "garch", "glf", "hio", "hd", "hdx", "pxOsd", "usdImaging"],
               buildPython=support_python,
-              customs=[gl.Require],
+              customs=[gl.Require, RequireGlew],
               envs=envs)
 
     _buildLib("usdSkelImaging",
