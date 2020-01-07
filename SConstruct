@@ -653,7 +653,7 @@ def _addInstall(sources, dirname, prefix, result, suffix=None):
         result[key].append(os.path.join(dirname, r))
 
 
-_plug_lib_ext = ".so"
+_plug_lib_ext = "so"
 if sys.platform == "darwin":
     _plug_lib_ext = "dylib"
 elif sys.platform == "win32":
@@ -1054,8 +1054,7 @@ if build_imaging:
               "imaging",
               libs=["arch", "tf", "gf", "js", "plug", "trace", "ar", "sdf", "garch", "hf"],
               buildPython=support_python,
-              customs=[lambda x: (RequireIlmImf(x, static=exr_static)),
-                       lambda x: (RequireOiio(x, static=oiio_static))],
+              customs=[lambda x: (RequireOiio(x, static=oiio_static))],
               envs=glfenvs)
 
     _buildLib("hgi",
