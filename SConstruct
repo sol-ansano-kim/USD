@@ -127,6 +127,7 @@ if build_imaging:
         excons.Call("mini-glew", targets=["glew"], imp=["GlewPath", "RequireGlew"], overrides=ext_opts)
         out_glew.append(GlewPath())
         out_glew.append("{}/GL/glew.h".format(out_incdir))
+        ext_opts["with-glew"] = out_basedir
     else:
         TODO()
 
