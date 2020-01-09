@@ -89,8 +89,10 @@ else:
     excons.WarnOnce("Boost is require to build USD, please provide root directory using 'with-boost=' flag", tool="USD")
     sys.exit(1)
 
-RequireBoost = boost.Require(libs=["program_options"])
-RequireBoostPy = boost.Require(libs=["python"])
+boost_libs = ["program_options"]
+if support_python:
+    boost_libs.append("python")
+RequireBoost = boost.Require(libs=boost_libs)
 
 # --------------------------------------------
 #  tbb
@@ -432,21 +434,20 @@ if sys.platform != "win32":
 
 else:
     defs += ["_CRT_SECURE_NO_WARNINGS", "_SCL_SECURE_NO_WARNINGS", "NOMINMAX", "YY_NO_UNISTD_H"]
-    flags += " /EHsc /Zc:rvalueCast /Zc:strictStrings /Zc:inline /W3"
-    flags += " /wd4244 /wd4305 /wd4267 /wd4506 /wd4091 /wd4273 /wd4180 /wd4334"
+    flags += " /EHsc /Zc:rvalueCast /Zc:strictStrings /Zc:inline /FS"
+    flags += " /wd4244 /wd4305 /wd4267 /wd4506 /wd4091 /wd4273 /wd4180 /wd4334 /wd4100 /wd4245 /wd4800 /wd4702 /wd4127 /wd4505 /wd4706 /wd4324 /wd4456 /wd4457 /wd4459 /wd4201 /wd4189 /wd4291 /wd4065 /wd4804 /wd4101 /wd4709 /wd4458"
     flags += " /bigobj /Zi /MP /Gm-"
-    # /IGNORE:4221
 
 libs = []
 if sys.platform != "win32":
     libs.append("m")
+
 else:
-    # TODO
-    libs += []
+    libs.extend(["Shlwapi", "Ws2_32", "Dbghelp", "kernel32", "user32", "gdi32", "winspool", "shell32", "ole32", "oleaut32", "uuid", "comdlg32", "advapi32.lib"])
 
 customs = [RequireBoost, RequireTBB]
 if support_python:
-    customs += [RequireBoostPy, python.SoftRequire]
+    customs += [python.SoftRequire]
 
 prjs = []
 
@@ -472,7 +473,7 @@ py_default = {"type": "dynamicmodule",
               "libs": libs,
               "deps": gen_files,
               "symvis": "default",
-              "custom": customs + [RequireBoostPy]}
+              "custom": customs}
 bin_default = prjs_default.copy()
 bin_default["type"] = "program"
 bin_default["custom"] = [RequireBoost, python.Require]
@@ -498,7 +499,7 @@ def _filterModuleCpps(srcs):
 
     return new_srcs
 
-def _addPrj(name, group, srcs, defs=None, libs=None, linkflags=None, customs=None, install=None, deps=None):
+def _addPrj(name, group, srcs, defs=None, libs=None, cppflags=None, linkflags=None, customs=None, install=None, deps=None):
     alias = "usd-{}-{}".format(group, name)
     grpname = "usd-{}".format(group)
     if grpname not in groups:
@@ -509,6 +510,7 @@ def _addPrj(name, group, srcs, defs=None, libs=None, linkflags=None, customs=Non
     prj["name"] = name
     prj["alias"] = alias
     prj["defs"] = _addDefs(name, prj["defs"])
+
     if defs:
         prj["defs"] = prj["defs"] + defs
 
@@ -519,6 +521,9 @@ def _addPrj(name, group, srcs, defs=None, libs=None, linkflags=None, customs=Non
 
     if install:
         prj["install"] = install
+
+    if cppflags:
+        prj["cppflags"] = prj["cppflags"] + cppflags
 
     if linkflags:
         prj["linkflags"] = linkflags + prj["linkflags"]
@@ -577,7 +582,7 @@ def GenUIFile(target, source, env):
         f.write("  ui_file = os.path.splitext(__file__)[0] + \".ui\"\n")
         f.write("  return Qt.QtCompat.loadUi(ui_file, parent)\n")
 
-def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, install=None, uiFiles=None, combinePys=False):
+def _addPyPrj(name, group, srcs, libs=None, cppflags=None, linkflags=None, customs=None, install=None, uiFiles=None, combinePys=False):
     if not srcs:
         return
 
@@ -591,7 +596,7 @@ def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, instal
         combined_srcs[name] = srcs
         if install:
             combined_install.update(install)
-        combined_defs.extend(_addDefs(name, []))
+        combined_defs.extend(["COMBINE_{}".format(name.upper())])
         if libs:
             combined_libs.extend(libs)
         if uiFiles:
@@ -618,6 +623,9 @@ def _addPyPrj(name, group, srcs, libs=None, linkflags=None, customs=None, instal
 
         if install:
             prj["install"] = install
+
+        if cppflags:
+            prj["cppflags"] = prj["cppflags"] + cppflags
 
         if linkflags:
             prj["linkflags"] = prj["linkflags"] + linkflags
@@ -775,6 +783,11 @@ def _buildLib(name, group, defs=None, libs=None, linkflags=None, customs=None, b
     install = {}
     pyinstall = {}
     ui_files = []
+    cppflags = ""
+
+    pch_path = os.path.abspath(os.path.join(dirname, "pch.h")).replace("\\", "/")
+    if sys.platform == "win32" and os.path.isfile(pch_path):
+        cppflags = " /FI" + pch_path
 
     _addInstall(parsed.get("PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
     _addInstall(parsed.get("PRIVATE_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
@@ -793,7 +806,7 @@ def _buildLib(name, group, defs=None, libs=None, linkflags=None, customs=None, b
     deps = _genJson(name, jsons, dirname, os.path.join(out_libdir, "usd/{}/resources".format(name)))
 
     if not buildPython:
-        _addPrj(name, group, cpps, defs=defs, libs=libs, linkflags=linkflags, customs=customs, install=install, deps=deps)
+        _addPrj(name, group, cpps, defs=defs, libs=libs, cppflags=cppflags, linkflags=linkflags, customs=customs, install=install, deps=deps)
     else:
         py_dest = os.path.join(out_libdir, "python/pxr/{}{}".format(name[0].upper(), name[1:]))
         _addInstall(parsed.get("PYTHON_PUBLIC_HEADERS", []), dirname, os.path.join(out_incdir, "pxr/{}/{}".format(group, name)), install)
@@ -815,8 +828,8 @@ def _buildLib(name, group, defs=None, libs=None, linkflags=None, customs=None, b
             cpps = _filterModuleCpps(cpps)
             pycpps = _filterModuleCpps(pycpps)
 
-        _addPrj(name, group, cpps, defs=defs, libs=libs, linkflags=linkflags, customs=customs, install=install, deps=deps)
-        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], install=pyinstall, uiFiles=ui_files, combinePys=combine_pys)
+        _addPrj(name, group, cpps, defs=defs, libs=libs, cppflags=cppflags, linkflags=linkflags, customs=customs, install=install, deps=deps)
+        _addPyPrj(name, group, pycpps, libs=(libs + [name]) if libs else [name], cppflags=cppflags, install=pyinstall, uiFiles=ui_files, combinePys=combine_pys)
 
 # --------------------------------------------
 #  envs
@@ -871,7 +884,7 @@ _buildLib("trace",
 
 _buildLib("work",
           "base",
-          libs=["tf", "trace"],
+          libs=["arch", "tf", "trace"],
           buildPython=support_python,
           envs=envs)
 
@@ -942,13 +955,13 @@ _buildLib("usdGeom",
 
 _buildLib("usdVol",
           "usd",
-          libs=["tf", "sdf", "usd", "usdGeom"],
+          libs=["arch", "tf", "sdf", "usd", "usdGeom"],
           buildPython=support_python,
           envs=envs)
 
 _buildLib("usdLux",
           "usd",
-          libs=["tf", "vt", "sdf", "usd", "usdGeom"],
+          libs=["arch", "tf", "vt", "sdf", "usd", "usdGeom"],
           buildPython=support_python,
           envs=envs)
 
@@ -966,13 +979,13 @@ _buildLib("usdRender",
 
 _buildLib("usdHydra",
           "usd",
-          libs=["ar", "tf", "plug", "ndr", "sdf", "usd", "usdShade"],
+          libs=["arch", "tf", "plug", "ar", "ndr", "sdf", "usd", "usdShade"],
           buildPython=support_python,
           envs=envs)
 
 _buildLib("usdRi",
           "usd",
-          libs=["tf", "vt", "sdf", "usd", "usdGeom", "usdShade", "usdLux"],
+          libs=["arch", "tf", "vt", "sdf", "usd", "usdGeom", "usdShade", "usdLux"],
           buildPython=support_python,
           envs=envs)
 
@@ -984,7 +997,7 @@ _buildLib("usdSkel",
 
 _buildLib("usdUI",
           "usd",
-          libs=["tf", "vt", "sdf", "usd"],
+          libs=["arch", "tf", "vt", "sdf", "usd"],
           buildPython=support_python,
           envs=envs)
 
@@ -1158,7 +1171,11 @@ if support_python and combine_pys:
     prj["name"] = "_combined"
     prj["alias"] = "usd-py-combined"
     prj["defs"] = prj["defs"] + combined_defs
-    prj["cppflags"] = prj["cppflags"] + " -Wno-macro-redefined"
+
+    if sys.platform != "win32":
+        prj["cppflags"] = prj["cppflags"] + " -Wno-macro-redefined"
+    else:
+        prj["cppflags"] = prj["cppflags"] + " /wd4005 /FIpxr/combined/pypch.h"
     prj["prefix"] = "lib/python/pxr"
     prj["srcs"] = combined_srcs
     prj["incdirs"] = prj["incdirs"] + [os.path.abspath(".")]
