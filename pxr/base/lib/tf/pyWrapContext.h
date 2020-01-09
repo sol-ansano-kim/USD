@@ -43,19 +43,19 @@ class Tf_PyWrapContextManager : public boost::noncopyable {
 
     typedef Tf_PyWrapContextManager This;
     
-    static This &GetInstance() {
+    TF_API static This &GetInstance() {
         return TfSingleton<This>::GetInstance();
     }
 
-    std::string GetCurrentContext() const {
+    TF_API std::string GetCurrentContext() const {
         return _contextStack.empty() ? std::string() : _contextStack.back();
     }
 
-    void PushContext(std::string const &ctx) {
+    TF_API void PushContext(std::string const &ctx) {
         _contextStack.push_back(ctx);
     }
 
-    void PopContext() {
+    TF_API void PopContext() {
         _contextStack.pop_back();
     }
 
